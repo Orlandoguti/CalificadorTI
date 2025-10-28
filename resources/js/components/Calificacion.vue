@@ -66,7 +66,7 @@
                             </div>
                         </div>
                         <button @click="iniciarConNPS" class="btn-continuar-nps">
-                            Continuar con la evaluación
+                            Evaluar
                         </button>
                     </div>
 
@@ -103,7 +103,7 @@
                 <div class="modal-container" @click.stop>
                     <div class="cuestionario-content">
                         <div class="cuestionario-header">
-                            <div class="progreso-info">
+                            <div class="progreso-info" style="text-align: center;">
                                 <div class="progreso">
                                     <div class="progreso-bar">
                                         <div class="progreso-fill" :style="{ width: porcentajeProgreso + '%' }"></div>
@@ -113,13 +113,9 @@
                                     </span>
                                 </div>
                                 <div class="nivel-info">
-                                    <span class="nivel-badge">Nivel: {{ nivelSeleccionado.nombre }}</span>
+                                    <span class="nivel-badge">{{ nivelSeleccionado.nombre }}</span>
                                 </div>
                             </div>
-                            
-                            <button @click="cancelarCuestionario" class="btn-cerrar-modal" title="Cerrar">
-                                <i class="fas fa-times"></i>
-                            </button>
                         </div>
 
 <!-- VISTA PRINCIPAL: PREGUNTA NORMAL O DE RANGO -->
@@ -192,64 +188,36 @@
             </div>
         </div>
 
-        <!-- Indicador 0-10 (solo para preguntas normales) -->
-        <div v-if="preguntaActualData.tipo === 'indicador_0_10' && !preguntaActualData.es_pregunta_rango" class="indicador-container">
-            <div class="indicador-header">
-                <div class="indicador-labels">
-                    <span class="indicador-min">0</span>
-                    <span class="indicador-value">{{ respuestaIndicadorValor }}</span>
-                    <span class="indicador-max">10</span>
-                </div>
-            </div>
-            
-            <div class="indicador-track" @mousedown="iniciarArrastre" @touchstart="iniciarArrastre">
-                <div class="indicador-progress" :style="{ width: porcentajeIndicador + '%' }"></div>
-                <div class="indicador-thumb" 
-                     :style="{ left: porcentajeIndicador + '%' }"
-                     @mousedown="iniciarArrastre"
-                     @touchstart="iniciarArrastre">
-                    <div class="thumb-circle"></div>
-                </div>
-            </div>
-            
-            <div class="indicador-ticks">
-                <span v-for="n in 11" :key="n" class="tick" :class="{ active: respuestaIndicadorValor  >= n-1 }">
-                    {{ n-1 }}
-                </span>
-            </div>
-            
-            <div class="indicador-emojis">
-                <div v-for="(emoji, index) in emojisIndicador" :key="index" 
-                     class="emoji-item" :class="{ active: Math.floor(respuestaIndicadorValor  / 2) === index }">
-                    <span class="emoji">{{ emoji.emoji }}</span>
-                    <span class="emoji-label">{{ emoji.label }}</span>
-                </div>
-            </div>
-        </div>
-
         <!-- Opción Única con Texto Libre (para preguntas normales Y de rango) -->
         <div v-if="preguntaActualData.tipo === 'opcion_unica_texto_libre'" class="opciones-container">
             <div v-for="(opcion, index) in obtenerOpcionesPregunta()" 
                  :key="index"
-                 class="opcion-item"
+                 class="opcion-wrapper"
                  :class="{ 
-                     'seleccionada': respuestaUnica === opcion.id || respuestaUnica === opcion,
-                     'con-texto-libre': opcionEsTextoLibre(obtenerTextoOpcion(opcion))
-                 }"
-                 @click="seleccionarOpcionUnicaConTextoRango(opcion, index)">
+                     'con-texto-libre': opcionEsTextoLibre(obtenerTextoOpcion(opcion)) && 
+                                       (respuestaUnica === opcion.id || respuestaUnica === opcion)
+                 }">
                 
-                <div class="opcion-radio">
-                    <div class="radio-circle" 
-                         :class="{ 'activo': respuestaUnica === opcion.id || respuestaUnica === opcion }">
+                <div class="opcion-item"
+                     :class="{ 
+                         'seleccionada': respuestaUnica === opcion.id || respuestaUnica === opcion,
+                         'con-texto-libre': opcionEsTextoLibre(obtenerTextoOpcion(opcion))
+                     }"
+                     @click="seleccionarOpcionUnicaConTextoRango(opcion, index)">
+                    
+                    <div class="opcion-radio">
+                        <div class="radio-circle" 
+                             :class="{ 'activo': respuestaUnica === opcion.id || respuestaUnica === opcion }">
+                        </div>
                     </div>
+                    
+                    <span class="opcion-texto">{{ obtenerTextoOpcion(opcion) }}</span>
                 </div>
-                
-                <span class="opcion-texto">{{ obtenerTextoOpcion(opcion) }}</span>
                 
                 <!-- Campo de texto libre cuando se selecciona "Otro" -->
                 <div v-if="opcionEsTextoLibre(obtenerTextoOpcion(opcion)) && 
                           (respuestaUnica === opcion.id || respuestaUnica === opcion)" 
-                     class="texto-libre-opcion">
+                     class="texto-libre-opcion"> 
                     <textarea 
                         v-model="textoLibreOpcion"
                         placeholder="Por favor, especifica tu respuesta..."
@@ -911,9 +879,10 @@ seleccionarOpcionUnica(opcion, index) {
     let identificador;
     
     if (this.preguntaActualData.es_pregunta_rango) {
-        // Para preguntas de rango, usar el texto
-        identificador = typeof opcion === 'string' ? opcion : this.obtenerTextoOpcion(opcion);
-        console.log('📝 Pregunta de rango - identificador:', identificador);
+        // 🔥 CORRECCIÓN: Para preguntas de rango, usar el ID de la opción (no el texto)
+        // Esto es importante para que se guarde correctamente en la BD
+        identificador = opcion && opcion.id ? opcion.id : (typeof opcion === 'string' ? opcion : this.obtenerTextoOpcion(opcion));
+        console.log('📝 Pregunta de rango - ID de opción:', identificador);
     } else {
         // 🔥 CORRECCIÓN CRÍTICA: Para preguntas normales, usar el ID numérico
         // PERO asegurando que sea un número, no el objeto completo
@@ -1074,6 +1043,20 @@ async procesarPreguntaNormal() {
         }
     }
 
+    // 🔥 CORRECCIÓN CSAT: Verificar si es solo CSAT antes de avanzar
+    const soloCSAT = this.areaSeleccionada?.permite_csat && 
+                    !this.areaSeleccionada?.permite_nps && 
+                    !this.areaSeleccionada?.permite_fcr;
+    
+    if (soloCSAT) {
+        console.log('🎉 CSAT solo en procesarPreguntaNormal: Finalizando calificación completa...');
+        await this.guardarCalificacionCompleta();
+        this.mostrarCuestionario = false;
+        this.mostrarAgradecimiento = true;
+        this.iniciarTemporizadorCierre();
+        return;
+    }
+
     // Si no hay subpreguntas, continuar normalmente
     this.preguntaActual++;
     await this.verificarFinalizacion();
@@ -1157,9 +1140,22 @@ async finalizarSubpreguntas() {
         this.subpreguntasActuales = [];
         this.subpreguntaIndex = 0;
         
-        // Continuar con siguiente pregunta normal
-        this.preguntaActual++;
-        await this.verificarFinalizacion();
+        // 🔥 CORRECCIÓN CSAT: Si solo hay CSAT (sin NPS/FCR), finalizar directamente
+        const soloCSAT = this.areaSeleccionada.permite_csat && 
+                        !this.areaSeleccionada.permite_nps && 
+                        !this.areaSeleccionada.permite_fcr;
+        
+        if (soloCSAT) {
+            console.log('🎉 CSAT solo: Finalizando calificación completa...');
+            await this.guardarCalificacionCompleta();
+            this.mostrarCuestionario = false;
+            this.mostrarAgradecimiento = true;
+            this.iniciarTemporizadorCierre();
+        } else {
+            // Continuar con siguiente pregunta normal
+            this.preguntaActual++;
+            await this.verificarFinalizacion();
+        }
     }
 },
 
@@ -2232,7 +2228,19 @@ guardarRespuestaUnica() {
     const preguntaId = this.preguntaActualData.id;
     const respuesta = this.respuestaUnica;
     
-    console.log('💾 Guardando respuesta única:', { preguntaId, respuesta });
+    console.log('💾 Guardando respuesta única:', { preguntaId, respuesta, esPreguntaRango: this.preguntaActualData.es_pregunta_rango });
+    
+    // 🔥 CORRECCIÓN: Si es pregunta de rango, usar guardarRespuestaPreguntaRango
+    if (this.preguntaActualData.es_pregunta_rango) {
+        const claveRango = `pregunta_${preguntaId}`;
+        this.respuestas[claveRango] = {
+            opcion_seleccionada_id: respuesta,
+            pregunta_rango_id: this.preguntaActualData.pregunta_rango_id,
+            es_pregunta_rango: true
+        };
+        console.log('✅ Respuesta de rango guardada:', this.respuestas[claveRango]);
+        return;
+    }
     
     if (this.preguntaActualData.tipo === 'opcion_unica_texto_libre') {
         // Mantener estructura para opción única con texto libre
@@ -2498,21 +2506,25 @@ async cargarSubpreguntasFCR() {
 /* Estilos base del calificador */
 .calificador-container {
     min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #ffffffeb  100%);
     padding: 2rem;
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Vista Selección */
 .vista-seleccion {
     text-align: center;
-    color: white;
+    color: rgb(0, 0, 0);
     max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    height: 650px;
 }
 
 .header-info {
-    margin-bottom: 3rem;
+    margin-bottom: 1rem;
 }
 
 .calificador-titulo {
@@ -2526,7 +2538,7 @@ async cargarSubpreguntasFCR() {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgb(0 0 0 / 4%);
     padding: 0.75rem 1.5rem;
     border-radius: 50px;
     backdrop-filter: blur(10px);
@@ -2534,12 +2546,11 @@ async cargarSubpreguntasFCR() {
 }
 
 .caritas-wrapper {
-    margin: 3rem auto;
+    margin: 1rem auto;
 }
 
 .caritas {
     display: flex;
-    gap: 2vw;
     justify-content: center;
     align-items: center;
     flex-wrap: wrap;
@@ -2553,8 +2564,8 @@ async cargarSubpreguntasFCR() {
 }
 
 .carita {
-    width: 180px;
-    height: 180px;
+    width: 240px;
+    height: 240px;
     border-radius: 50%;
     background: #fff;
     border: 0px solid #fff;
@@ -2565,6 +2576,17 @@ async cargarSubpreguntasFCR() {
     cursor: pointer;
     transition: all 0.3s ease;
     margin-bottom: 1.5rem;
+    outline: none; /* 🔥 Eliminar outline por defecto */
+}
+
+.carita:focus {
+    outline: none; /* 🔥 Sin outline al hacer focus */
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2); /* Mantener sombra normal */
+}
+
+.carita:active {
+    outline: none; /* 🔥 Sin outline al hacer click */
+    transform: scale(0.98); /* Efecto de presión suave */
 }
 
 .carita:hover {
@@ -2580,7 +2602,7 @@ async cargarSubpreguntasFCR() {
 .carita-label {
     font-size: 1.5rem;
     font-weight: 600;
-    color: white;
+    color: rgb(0, 0, 0);
     text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
     cursor: pointer;
     transition: color 0.3s ease;
@@ -2712,12 +2734,11 @@ async cargarSubpreguntasFCR() {
 }
 
 .pregunta-actual {
-    padding: 3rem 2rem;
+    padding: 2rem 2rem;
 }
 
 .pregunta-header {
     text-align: center;
-    margin-bottom: 2rem;
 }
 
 .pregunta-texto {
@@ -2869,7 +2890,7 @@ async cargarSubpreguntasFCR() {
 
 .navegacion-modal {
     display: flex;
-    justify-content: space-between;
+    justify-content: space-evenly;
     align-items: center;
     padding: 2rem;
     background: #f8fafc;
@@ -3360,12 +3381,21 @@ async cargarSubpreguntasFCR() {
     background: #f8fafc;
 }
 
+
+.opcion-wrapper.con-texto-libre .opcion-item {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-bottom: 0;
+}
+
 .texto-libre-opcion {
-    margin-top: 1rem;
+    margin-top: 0;
     padding: 1rem;
     background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border-top: none;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
     width: 100%;
 }
 
@@ -3496,7 +3526,6 @@ async cargarSubpreguntasFCR() {
 
 .subpregunta-header {
     text-align: center;
-    margin-bottom: 2rem;
 }
 
 .subpregunta-texto {
@@ -3563,7 +3592,6 @@ async cargarSubpreguntasFCR() {
     padding: 1rem;
     border: 2px solid #E5E7EB;
     border-radius: 8px;
-    margin-bottom: 0.75rem;
     cursor: pointer;
     transition: all 0.2s ease;
 }

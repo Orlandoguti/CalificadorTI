@@ -131,26 +131,37 @@ public function guardarCompleta(Request $request)
             // Manejo de diferentes tipos de respuesta
             switch ($pregunta->tipo) {
                 case 'opcion_unica':
-                    $respuestaData['opcion_seleccionada_id'] = $respuesta;
+                    // 🔥 CORRECCIÓN: Asegurar que sea numérico, no array
+                    if (is_array($respuesta)) {
+                        $respuestaData['opcion_seleccionada_id'] = isset($respuesta['opcion_seleccionada_id']) ? (int)$respuesta['opcion_seleccionada_id'] : null;
+                    } else {
+                        $respuestaData['opcion_seleccionada_id'] = is_numeric($respuesta) ? (int)$respuesta : null;
+                    }
                     break;
                     
                 case 'opcion_multiple':
-                    $respuestaData['respuesta_texto'] = json_encode($respuesta);
+                    // 🔥 CORRECCIÓN: Guardar como array en opciones_seleccionadas (será convertido a JSON por el cast)
+                    $respuestaData['opciones_seleccionadas'] = is_array($respuesta) ? $respuesta : [$respuesta];
                     break;
                     
                 case 'texto_libre':
-                    $respuestaData['respuesta_texto'] = $respuesta;
+                    $respuestaData['respuesta_texto'] = is_array($respuesta) ? json_encode($respuesta) : (string)$respuesta;
                     break;
                     
                 case 'indicador_0_10':
-                    $respuestaData['respuesta_texto'] = (string)$respuesta;
+                    // 🔥 CORRECCIÓN: Asegurar que sea string, no array
+                    if (is_array($respuesta)) {
+                        $respuestaData['respuesta_texto'] = isset($respuesta['valor']) ? (string)$respuesta['valor'] : json_encode($respuesta);
+                    } else {
+                        $respuestaData['respuesta_texto'] = (string)$respuesta;
+                    }
                     break;
                     
                 case 'opcion_unica_texto_libre':
                     if (is_array($respuesta) && isset($respuesta['opcion_seleccionada_id'])) {
-                        $respuestaData['opcion_seleccionada_id'] = $respuesta['opcion_seleccionada_id'];
+                        $respuestaData['opcion_seleccionada_id'] = (int)$respuesta['opcion_seleccionada_id'];
                         if (!empty($respuesta['texto_libre'])) {
-                            $respuestaData['respuesta_texto'] = $respuesta['texto_libre'];
+                            $respuestaData['respuesta_texto'] = (string)$respuesta['texto_libre'];
                         }
                     } else {
                         $respuestaData['respuesta_texto'] = is_array($respuesta) ? json_encode($respuesta) : (string)$respuesta;
@@ -199,37 +210,64 @@ if (isset($validated['respuestas_rangos']) && is_array($validated['respuestas_ra
             continue;
         }
 
-        $respuestaRangoData = [
+        // 🔥 CORRECCIÓN: Las respuestas de rango deben guardarse en respuestas_subpreguntas, no en respuestas_calificacion
+        // El pregunta_rango_id es en realidad un subpregunta_id
+        $subpreguntaId = $respuestaRango['pregunta_rango_id'];
+        
+        // Preparar datos para respuestas_subpreguntas
+        $respuestaSubpreguntaData = [
             'calificacion_id' => $calificacion->id,
-            'pregunta_id' => 1, // Usar pregunta_id válido
-            'es_pregunta_rango' => true,
-            'pregunta_rango_id' => $respuestaRango['pregunta_rango_id'],
+            'subpregunta_id' => $subpreguntaId,
         ];
 
-        // Procesar respuesta (mantener tu código actual)
+        // Procesar respuesta según el tipo
         if (isset($respuestaRango['texto_respuesta']) && !empty(trim($respuestaRango['texto_respuesta']))) {
-            $respuestaRangoData['respuesta_texto'] = trim($respuestaRango['texto_respuesta']);
+            $respuestaSubpreguntaData['texto_respuesta'] = trim($respuestaRango['texto_respuesta']);
         }
-                elseif (isset($respuestaRango['opcion_seleccionada']) && !empty(trim($respuestaRango['opcion_seleccionada']))) {
-                    // Para opciones de rango, guardar el texto directamente
-                    $respuestaRangoData['respuesta_texto'] = trim($respuestaRango['opcion_seleccionada']);
+        elseif (isset($respuestaRango['opcion_seleccionada'])) {
+            // Si viene opcion_seleccionada (ID), guardarlo y obtener el texto
+            if (is_numeric($respuestaRango['opcion_seleccionada'])) {
+                $opcionId = (int)$respuestaRango['opcion_seleccionada'];
+                
+                // Intentar obtener el texto de la opción
+                try {
+                    $opcion = \App\Models\OpcionPregunta::find($opcionId);
+                    if ($opcion) {
+                        $respuestaSubpreguntaData['opcion_seleccionada'] = $opcion->texto;
+                        $respuestaSubpreguntaData['texto_respuesta'] = $opcion->texto;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('No se pudo obtener texto de opción:', ['error' => $e->getMessage()]);
+                    $respuestaSubpreguntaData['texto_respuesta'] = (string)$opcionId;
                 }
-                elseif (isset($respuestaRango['opciones_seleccionadas']) && is_array($respuestaRango['opciones_seleccionadas']) && !empty($respuestaRango['opciones_seleccionadas'])) {
-                    $respuestaRangoData['opciones_seleccionadas'] = json_encode($respuestaRango['opciones_seleccionadas']);
-                }
-                elseif (isset($respuestaRango['valor_indicador']) && $respuestaRango['valor_indicador'] !== '') {
-                    $respuestaRangoData['respuesta_texto'] = (string)$respuestaRango['valor_indicador'];
-                }
+            } else {
+                // Si no es numérico, guardar como texto
+                $respuestaSubpreguntaData['opcion_seleccionada'] = trim($respuestaRango['opcion_seleccionada']);
+                $respuestaSubpreguntaData['texto_respuesta'] = trim($respuestaRango['opcion_seleccionada']);
+            }
+        }
+        elseif (isset($respuestaRango['opciones_seleccionadas']) && is_array($respuestaRango['opciones_seleccionadas']) && !empty($respuestaRango['opciones_seleccionadas'])) {
+            // El modelo tiene un cast 'array' que convertirá automáticamente a JSON
+            $respuestaSubpreguntaData['opciones_seleccionadas'] = $respuestaRango['opciones_seleccionadas'];
+        }
+        elseif (isset($respuestaRango['valor_indicador']) && $respuestaRango['valor_indicador'] !== '') {
+            $respuestaSubpreguntaData['valor_indicador'] = (string)$respuestaRango['valor_indicador'];
+        }
 
-                // Si no hay datos válidos, saltar
-                if (empty($respuestaRangoData['respuesta_texto']) && empty($respuestaRangoData['opciones_seleccionadas'])) {
-                    Log::warning('❌ Respuesta de rango sin datos válidos, saltando...', $respuestaRangoData);
-                    continue;
-                }
+        // Si no hay datos válidos, saltar
+        $tieneTexto = !empty($respuestaSubpreguntaData['texto_respuesta']);
+        $tieneOpciones = !empty($respuestaSubpreguntaData['opciones_seleccionadas']);
+        $tieneOpcion = !empty($respuestaSubpreguntaData['opcion_seleccionada']);
+        $tieneValor = !empty($respuestaSubpreguntaData['valor_indicador']);
+        
+        if (!$tieneTexto && !$tieneOpciones && !$tieneOpcion && !$tieneValor) {
+            Log::warning('❌ Respuesta de rango sin datos válidos, saltando...', $respuestaSubpreguntaData);
+            continue;
+        }
 
-                Log::info('💾 Guardando respuesta de rango:', $respuestaRangoData);
-                RespuestaCalificacion::create($respuestaRangoData);
-                Log::info('✅ Respuesta de rango guardada exitosamente');
+        Log::info('💾 Guardando respuesta de rango en respuestas_subpreguntas:', $respuestaSubpreguntaData);
+        \App\Models\RespuestaSubpregunta::create($respuestaSubpreguntaData);
+        Log::info('✅ Respuesta de rango guardada exitosamente en respuestas_subpreguntas');
             }
         } else {
             Log::info('📭 No hay respuestas de rangos para procesar');

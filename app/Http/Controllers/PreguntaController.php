@@ -22,7 +22,7 @@ class PreguntaController extends Controller
         $areaId = $request->get('area_id');
         $nivelId = $request->get('nivel_id');
         
-        $query = Pregunta::with(['opciones', 'nivelCalificacion'])
+        $query = Pregunta::with(['opciones', 'nivelCalificacion', 'subpreguntasRango'])
             ->where('is_active', true);
 
         // ✅ FILTRAR POR NIVEL DE CALIFICACIÓN (siempre necesario)
@@ -111,6 +111,23 @@ class PreguntaController extends Controller
                     ->whereIn('id', $sedesRelacionadas)
                     ->select('id', 'nombre')
                     ->get();
+            }
+            
+            // 🔥 NUEVO: Agregar subpreguntas de rango procesadas
+            if ($pregunta->tipo === 'indicador_0_10' && $pregunta->subpreguntasRango) {
+                $pregunta->subpreguntas_rango = $pregunta->subpreguntasRango->map(function($sp) {
+                    return [
+                        'id' => $sp->id,
+                        'rango_min' => $sp->rango_min,
+                        'rango_max' => $sp->rango_max,
+                        'pregunta_texto' => $sp->pregunta_texto,
+                        'tipo' => $sp->tipo,
+                        'opciones' => $sp->opciones,
+                        'is_active' => $sp->is_active
+                    ];
+                })->toArray();
+            } else {
+                $pregunta->subpreguntas_rango = [];
             }
         }
 

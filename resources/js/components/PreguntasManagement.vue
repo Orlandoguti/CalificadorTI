@@ -57,8 +57,8 @@
             <!-- Questions Grid -->
             <div v-else class="questions-grid">
                 <div v-for="pregunta in preguntas" :key="pregunta.id" class="question-card">
-                    <div class="card-header">
-                        <div class="question-id">#{{ pregunta.id }}</div>
+                    <div class="card-header" style="justify-self: center;">
+                        <div class="question-id"></div>
                         <div class="question-status">
                             <!-- Badges de tipo y estado juntos -->
                             <div style="display: flex; gap: 0.5rem; align-items: center;">                                
@@ -113,14 +113,6 @@
                                     {{ sede.nombre }}
                                 </span>
                             </div>
-                        </div>
-
-                        <div class="question-details">
-                            
-                            <span v-if="pregunta.tipo !== 'texto_libre'" class="options-count">
-                                <i class="fas fa-list-ul"></i>
-                                {{ pregunta.opciones_count || 0 }} opciones
-                            </span>
                         </div>
 
                         <!-- 🔥 NUEVO: Indicador de subpreguntas -->
@@ -390,9 +382,11 @@
                                         <i class="fas fa-comment"></i> Campo de texto libre
                                     </div>
                                 </div>
-                                <button type="button" @click="agregarOpcionPregunta" class="btn btn-outline">
-                                    <i class="fas fa-plus"></i> Agregar Opción
-                                </button>
+                                <div class="btn-agregar-wrapper">
+                                    <button type="button" @click="agregarOpcionPregunta" class="btn btn-outline btn-agregar">
+                                        <i class="fas fa-plus"></i> Agregar Opción
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -429,8 +423,11 @@
                                                 placeholder="Fin"
                                                 @change="validarRango(index)"
                                             >
+                                            <!-- 🔥 MOVIDO: Badge de rango al lado de los campos -->
+                                            <span class="rango-valores-badge" style="background: #667eea; color: white; padding: 0.4rem 0.8rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem;">
+                                                {{ rango.inicio }}-{{ rango.fin }}
+                                            </span>
                                         </div>
-                                        <span class="rango-valores" style="display: block; margin-top: 0.5rem;">{{ rango.inicio }}-{{ rango.fin }}</span>
                                     </div>
                                     <div class="rango-toggle" style="display: flex; align-items: center; gap: 1rem;">
                                         <button 
@@ -458,8 +455,8 @@
                                         <label>Pregunta para este rango *</label>
                                         <textarea 
                                             v-model="rango.pregunta_texto"
-                                            placeholder="Ej: ¿Podría decirnos el motivo por el que calificó su experiencia de esta manera?"
-                                            rows="2"
+                                            placeholder="Escribe la pregunta aquí..."
+                                            rows="3"
                                             class="form-textarea"
                                             required
                                         ></textarea>
@@ -478,29 +475,47 @@
                                     <!-- Opciones para el rango -->
                                     <div v-if="['opcion_unica', 'opcion_multiple', 'opcion_unica_texto_libre'].includes(rango.tipo)" 
                                          class="form-group">
-                                        <label>Opciones de Respuesta *</label>
+                                        <label class="form-label">
+                                            <i class="fas fa-list-ul"></i>
+                                            Opciones de Respuesta *
+                                            <span v-if="rango.tipo === 'opcion_unica_texto_libre'" class="badge-info">
+                                                <i class="fas fa-info-circle"></i> La opción "Otro" se agregará automáticamente
+                                            </span>
+                                        </label>
                                         <div class="opciones-container">
-                                            <div v-for="(opcion, opcionIndex) in rango.opciones" :key="opcionIndex" class="opcion-input-item">
+                                            <div v-for="(opcion, opcionIndex) in rango.opciones" 
+                                                 :key="opcionIndex" 
+                                                 class="opcion-input-item"
+                                                 :class="{ 
+                                                     'opcion-otro': esOpcionOtro(opcion.texto),
+                                                     'ultima-opcion': rango.tipo === 'opcion_unica_texto_libre' && opcionIndex === rango.opciones.length - 1
+                                                 }">
                                                 <input 
                                                     v-model="opcion.texto"
                                                     type="text"
                                                     :placeholder="`Opción ${opcionIndex + 1}`"
-                                                    required
                                                     class="form-input opcion-input"
+                                                    :readonly="rango.tipo === 'opcion_unica_texto_libre' && esOpcionOtro(opcion.texto)"
+                                                    required
                                                 >
                                                 <button 
                                                     type="button" 
                                                     @click="eliminarOpcionRango(index, opcionIndex)"
                                                     class="btn-icon danger"
-                                                    :disabled="rango.opciones.length <= 2"
-                                                    title="Eliminar opción"
+                                                    :disabled="rango.opciones.length <= 2 || (rango.tipo === 'opcion_unica_texto_libre' && esOpcionOtro(opcion.texto))"
+                                                    :title="esOpcionOtro(opcion.texto) ? 'No se puede eliminar esta opción' : 'Eliminar opción'"
                                                 >
                                                     <i class="fas fa-times"></i>
                                                 </button>
+                                                <div v-if="esOpcionOtro(opcion.texto)" class="opcion-otro-badge">
+                                                    <i class="fas fa-comment"></i> Campo de texto libre
+                                                </div>
                                             </div>
-                                            <button type="button" @click="agregarOpcionRango(index)" class="btn btn-outline">
-                                                <i class="fas fa-plus"></i> Agregar Opción
-                                            </button>
+                                            <div class="btn-agregar-wrapper">
+                                                <button type="button" @click="agregarOpcionRango(index)" class="btn btn-outline btn-agregar">
+                                                    <i class="fas fa-plus"></i> Agregar Opción
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -515,7 +530,7 @@
                             </div>
 
                             <!-- Botón para agregar nuevos rangos -->
-                            <div class="agregar-rango-container" style="margin-top: 1rem;">
+                            <div class="agregar-rango-container" style="margin-top: 1rem; place-items: center;">
                                 <button type="button" @click="agregarRango" class="btn btn-secondary">
                                     <i class="fas fa-plus"></i> Agregar Nuevo Rango
                                 </button>
@@ -1353,14 +1368,28 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 niveles_calificacion_id: pregunta.niveles_calificacion_id,
                 sede_id: pregunta.sede_id,
                 opciones: opciones,
-                is_active: pregunta.is_active,
+                // 🔥 CORRECCIÓN: Convertir is_active a booleano explícitamente
+                is_active: pregunta.is_active === true || pregunta.is_active === 1 || pregunta.is_active === '1',
                 // 🔥 Agregar áreas participantes para mostrar en el modal
                 areas_participantes: pregunta.areas_participantes || [],
                 sede_participante: pregunta.sede_participante || null
             };
+            
+            // 🔥 CORRECCIÓN: Cargar áreas y sedes seleccionadas si es pregunta genérica
+            if (esPreguntaGenerica && pregunta.areas_participantes) {
+                this.areasSeleccionadas = pregunta.areas_participantes.map(area => area.id);
+                if (pregunta.sedes_participantes && pregunta.sedes_participantes.length > 0) {
+                    this.sedesSeleccionadas = pregunta.sedes_participantes.map(sede => sede.id);
+                }
+            } else {
+                this.areasSeleccionadas = pregunta.area_id ? [pregunta.area_id] : [];
+                this.sedesSeleccionadas = pregunta.sede_id ? [pregunta.sede_id] : [];
+            }
 
             // 🔥 NUEVO: Cargar configuración de rangos si es indicador
             if (pregunta.tipo === 'indicador_0_10') {
+                console.log('🔍 Cargando rangos para pregunta indicador:', pregunta.id);
+                console.log('🔍 pregunta.subpreguntas_rango:', pregunta.subpreguntas_rango);
                 await this.cargarConfiguracionRangos(pregunta.id);
             } else {
                 this.resetearConfiguracionRangos();
@@ -1369,18 +1398,72 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             this.mostrarModalPregunta = true;
         },
 
-        // 🔥 NUEVO: Cargar configuración de rangos existente
+        // 🔥 CORRECCIÓN: Cargar configuración de rangos existente
         async cargarConfiguracionRangos(preguntaId) {
             try {
-                const response = await fetch(`/api/preguntas/${preguntaId}/rangos`);
-                if (response.ok) {
-                    const rangosExistentes = await response.json();
-                    // Procesar rangos existentes...
-                    this.mostrandoConfiguracionRangos = true;
+                // La pregunta ya viene con subpreguntas_rango desde cargarPreguntas
+                // Pero si no está, intentar cargarla directamente
+                const preguntaEditando = this.preguntas.find(p => p.id === preguntaId);
+                
+                let subpreguntasRango = [];
+                if (preguntaEditando && preguntaEditando.subpreguntas_rango) {
+                    subpreguntasRango = preguntaEditando.subpreguntas_rango;
+                } else {
+                    // Si no viene en la lista de preguntas, cargar directamente
+                    const response = await fetch(`/api/preguntas?area_id=todas&nivel_id=todas`);
+                    if (response.ok) {
+                        const todasLasPreguntas = await response.json();
+                        const pregunta = todasLasPreguntas.find(p => p.id === preguntaId);
+                        if (pregunta && pregunta.subpreguntas_rango) {
+                            subpreguntasRango = pregunta.subpreguntas_rango;
+                        }
+                    }
                 }
+                
+                console.log('📋 Subpreguntas de rango cargadas:', subpreguntasRango);
+                
+                // Procesar subpreguntas a formato de configuración de rangos
+                this.configuracionRangos = subpreguntasRango.map(sp => {
+                    // Procesar opciones
+                    let opciones = [];
+                    if (sp.opciones) {
+                        if (typeof sp.opciones === 'string') {
+                            try {
+                                const parsed = JSON.parse(sp.opciones);
+                                opciones = Array.isArray(parsed) 
+                                    ? parsed.map(texto => ({ texto }))
+                                    : [];
+                            } catch (e) {
+                                console.warn('Error parseando opciones:', e);
+                                opciones = [];
+                            }
+                        } else if (Array.isArray(sp.opciones)) {
+                            opciones = sp.opciones.map(texto => ({ texto }));
+                        }
+                    }
+                    
+                    // Si no hay opciones pero el tipo las requiere, inicializar
+                    if (['opcion_unica', 'opcion_multiple', 'opcion_unica_texto_libre'].includes(sp.tipo) && opciones.length === 0) {
+                        opciones = [{ texto: '' }, { texto: '' }];
+                    }
+                    
+                    return {
+                        inicio: sp.rango_min ?? 0,
+                        fin: sp.rango_max ?? 10,
+                        activo: sp.is_active ?? true,
+                        pregunta_texto: sp.pregunta_texto || '',
+                        tipo: sp.tipo || 'opcion_unica',
+                        opciones: opciones,
+                        id: sp.id // Mantener ID para referencia
+                    };
+                });
+                
+                this.mostrandoConfiguracionRangos = true;
+                console.log('✅ Configuración de rangos cargada:', this.configuracionRangos);
             } catch (error) {
                 console.error('Error cargando configuración de rangos:', error);
-                this.resetearConfiguracionRangos();
+                this.configuracionRangos = [];
+                this.mostrandoConfiguracionRangos = true;
             }
         },
 
@@ -1551,10 +1634,21 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                     configuracion_rangos: this.esPreguntaIndicador && this.totalRangosActivos > 0 ? this.configuracionRangos : []
                 };
                 
+                console.log('📤 Datos a enviar:', JSON.stringify(datos, null, 2));
+                console.log('🔍 Configuración de rangos:', this.configuracionRangos);
+                console.log('🔍 Es pregunta indicador:', this.esPreguntaIndicador);
+                console.log('🔍 Total rangos activos:', this.totalRangosActivos);
+                
                 // 🔥 Agregar area_id y sede_id solo si NO es pregunta genérica (solo para creación)
                 if (!this.tipoSeleccionado && !this.esEdicionPregunta) {
                     datos.area_id = this.areasSeleccionadas[0] || null;
                     datos.sede_id = this.sedesSeleccionadas[0] || null;
+                    datos.areas_id = this.areasSeleccionadas;
+                    datos.sedes_id = this.sedesSeleccionadas;
+                }
+                
+                // Para preguntas genéricas (NPS/CSAT/FCR), agregar áreas relacionadas
+                if (this.tipoSeleccionado && this.areasSeleccionadas.length > 0) {
                     datos.areas_id = this.areasSeleccionadas;
                     datos.sedes_id = this.sedesSeleccionadas;
                 }
@@ -1846,9 +1940,51 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
 
         // 🔥 NUEVO: Agregar nuevo rango
         agregarRango() {
+            // 🔥 CORRECCIÓN: Calcular el siguiente rango disponible
+            let siguienteInicio = 0;
+            let siguienteFin = 10;
+            
+            // Ordenar rangos existentes por inicio
+            const rangosOrdenados = [...this.configuracionRangos].sort((a, b) => a.inicio - b.inicio);
+            
+            if (rangosOrdenados.length > 0) {
+                // Buscar el primer hueco o usar el siguiente valor después del último
+                for (let i = 0; i < rangosOrdenados.length; i++) {
+                    const rango = rangosOrdenados[i];
+                    if (i === 0 && rango.inicio > 0) {
+                        // Hay espacio antes del primer rango
+                        siguienteInicio = 0;
+                        siguienteFin = rango.inicio - 1;
+                        break;
+                    } else if (i < rangosOrdenados.length - 1) {
+                        // Hay un hueco entre este rango y el siguiente
+                        const siguienteRango = rangosOrdenados[i + 1];
+                        if (rango.fin + 1 < siguienteRango.inicio) {
+                            siguienteInicio = rango.fin + 1;
+                            siguienteFin = siguienteRango.inicio - 1;
+                            break;
+                        }
+                    } else {
+                        // Estamos en el último rango, usar el siguiente valor
+                        if (rango.fin < 10) {
+                            siguienteInicio = rango.fin + 1;
+                            siguienteFin = 10;
+                        } else {
+                            // Ya no hay más espacio (cubierto hasta 10)
+                            alert('Ya se han configurado todos los rangos posibles (0-10)');
+                            return;
+                        }
+                    }
+                }
+            } else {
+                // Primer rango, empezar en 0-10
+                siguienteInicio = 0;
+                siguienteFin = 10;
+            }
+            
             const nuevoRango = {
-                inicio: 0,
-                fin: 6,
+                inicio: siguienteInicio,
+                fin: siguienteFin,
                 activo: true,
                 pregunta_texto: '',
                 tipo: 'opcion_unica',
@@ -1862,11 +1998,42 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             this.configuracionRangos.splice(index, 1);
         },
 
-        // 🔥 NUEVO: Validar rango (inicio debe ser menor que fin)
+        // 🔥 CORRECCIÓN: Validar rango mejorado (evitar solapamientos y mantener 0-10)
         validarRango(index) {
             const rango = this.configuracionRangos[index];
+            
+            // Validar que inicio <= fin
             if (rango.inicio > rango.fin) {
                 rango.fin = rango.inicio;
+            }
+            
+            // Validar que esté dentro de 0-10
+            if (rango.inicio < 0) rango.inicio = 0;
+            if (rango.inicio > 10) rango.inicio = 10;
+            if (rango.fin < 0) rango.fin = 0;
+            if (rango.fin > 10) rango.fin = 10;
+            
+            // Validar que no se solape con otros rangos
+            for (let i = 0; i < this.configuracionRangos.length; i++) {
+                if (i === index) continue;
+                
+                const otroRango = this.configuracionRangos[i];
+                
+                // Verificar solapamiento
+                if ((rango.inicio >= otroRango.inicio && rango.inicio <= otroRango.fin) ||
+                    (rango.fin >= otroRango.inicio && rango.fin <= otroRango.fin) ||
+                    (rango.inicio <= otroRango.inicio && rango.fin >= otroRango.fin)) {
+                    alert(`Este rango se solapa con el rango ${otroRango.inicio}-${otroRango.fin}. Por favor ajusta los valores.`);
+                    // Ajustar automáticamente: usar el siguiente valor disponible
+                    if (rango.inicio <= otroRango.fin) {
+                        rango.inicio = otroRango.fin + 1;
+                        if (rango.inicio > 10) rango.inicio = 10;
+                    }
+                    if (rango.inicio > rango.fin) {
+                        rango.fin = rango.inicio;
+                    }
+                    break;
+                }
             }
         },
 
@@ -2273,6 +2440,21 @@ async procesarEliminacionForzada(preguntaId) {
     align-items: center;
     gap: 0.5rem;
     transition: all 0.3s ease;
+}
+
+/* 🔥 NUEVO: Contenedor para centrar el botón Agregar Opción */
+.btn-agregar-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.5rem;
+}
+
+/* 🔥 NUEVO: Estilo para el botón Agregar Opción más pequeño */
+.btn-agregar {
+    width: auto;
+    min-width: 180px;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
 }
 
 .btn-outline:hover {
