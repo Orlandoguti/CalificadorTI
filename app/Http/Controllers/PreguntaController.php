@@ -22,13 +22,22 @@ class PreguntaController extends Controller
         $areaId = $request->get('area_id');
         $nivelId = $request->get('nivel_id');
         
-        $query = Pregunta::with(['opciones', 'area', 'nivelCalificacion', 'sede'])
+        $query = Pregunta::with(['opciones', 'nivelCalificacion'])
             ->where('is_active', true);
 
         // ✅ FILTRAR POR NIVEL DE CALIFICACIÓN (siempre necesario)
+        // 🔥 EXCEPCIÓN: Solo las preguntas genéricas (NPS, CSAT, FCR SIN nivel específico) están disponibles para todos los niveles
         if ($nivelId && $nivelId !== 'todas') {
             Log::info("🔍 FILTRANDO preguntas por nivel_id: " . $nivelId);
-            $query->where('niveles_calificacion_id', $nivelId);
+            $query->where(function($q) use ($nivelId) {
+                // Preguntas específicas del nivel
+                $q->where('niveles_calificacion_id', $nivelId)
+                  // O preguntas genéricas (tipo_pregunta no nulo Y SIN nivel específico)
+                  ->orWhere(function($subQ) {
+                      $subQ->whereNotNull('tipo_pregunta')
+                           ->whereNull('niveles_calificacion_id');
+                  });
+            });
         }
 
         // 🔥 NUEVO: Para filtrado por área Y sede, usar tabla area_pregunta
@@ -50,11 +59,8 @@ class PreguntaController extends Controller
             
             $preguntasIdsRelacionadas = $queryRelacionadas->pluck('pregunta_id');
             
-            // Incluir: preguntas con area_id directo O preguntas relacionadas en tabla pivote
-            $query->where(function($q) use ($areaId, $preguntasIdsRelacionadas) {
-                $q->where('area_id', $areaId)
-                  ->orWhereIn('id', $preguntasIdsRelacionadas);
-            });
+            // Solo usar preguntas relacionadas en tabla pivote (ya no hay area_id directo)
+            $query->whereIn('id', $preguntasIdsRelacionadas);
         } else if ($sedeId && $sedeId !== 'todas') {
             // Si solo hay filtro por sede (sin área)
             Log::info("🔍 FILTRANDO preguntas por sede_id: " . $sedeId);
@@ -63,13 +69,18 @@ class PreguntaController extends Controller
                 ->where('is_active', true)
                 ->pluck('pregunta_id');
             
-            $query->where(function($q) use ($sedeId, $preguntasIdsConSede) {
-                $q->where('sede_id', $sedeId)
-                  ->orWhereIn('id', $preguntasIdsConSede);
-            });
+            // Solo usar preguntas relacionadas en tabla pivote (ya no hay sede_id directo)
+            $query->whereIn('id', $preguntasIdsConSede);
         }
         
-        $preguntas = $query->orderBy('id', 'desc')->get();
+        // 🔥 CORRECCIÓN: Mantener ordenamiento por nivel específico, luego por ID
+        if ($nivelId && $nivelId !== 'todas') {
+            $preguntas = $query->orderByRaw("CASE WHEN niveles_calificacion_id = ? THEN 0 ELSE 1 END", [$nivelId])
+                               ->orderBy('id', 'desc')
+                               ->get();
+        } else {
+            $preguntas = $query->orderBy('id', 'desc')->get();
+        }
         
         // 🔥 NUEVO: Agregar áreas y sedes relacionadas a cada pregunta
         foreach ($preguntas as $pregunta) {
@@ -86,12 +97,20 @@ class PreguntaController extends Controller
                 ->select('id', 'nombre', 'codigo')
                 ->get();
             
-            // Si tiene sede_id, incluir la sede
-            if ($pregunta->sede_id) {
-                $pregunta->sede_participante = DB::table('sedes')
-                    ->where('id', $pregunta->sede_id)
+            // Obtener sedes relacionadas desde tabla pivote (obtener DISTINCT sede_id)
+            $sedesRelacionadas = DB::table('area_pregunta')
+                ->where('pregunta_id', $pregunta->id)
+                ->where('is_active', true)
+                ->whereNotNull('sede_id')
+                ->distinct()
+                ->pluck('sede_id')
+                ->toArray();
+            
+            if (!empty($sedesRelacionadas)) {
+                $pregunta->sedes_participantes = DB::table('sedes')
+                    ->whereIn('id', $sedesRelacionadas)
                     ->select('id', 'nombre')
-                    ->first();
+                    ->get();
             }
         }
 
@@ -116,25 +135,21 @@ public function store(Request $request)
 
         $validated = $request->validate([
             'pregunta' => 'required|string|max:500',
-            'area_id' => 'nullable|exists:areas,id', // Ahora es opcional
             'niveles_calificacion_id' => 'required|exists:niveles_calificacion,id',
-            'sede_id' => 'nullable|exists:sedes,id', // Ahora es opcional
             'tipo' => 'required|in:opcion_unica,opcion_multiple,texto_libre,indicador_0_10,opcion_unica_texto_libre',
             'tipo_pregunta' => 'nullable|in:csat,nps,fcr',
             'is_active' => 'boolean',
             'opciones' => 'sometimes|array',
             'configuracion_rangos' => 'sometimes|array',
-            // 🔥 NUEVO: Arrays de áreas y sedes
+            // Arrays de áreas y sedes para tabla pivote
             'areas_id' => 'sometimes|array',
             'sedes_id' => 'sometimes|array',
         ]);
 
-        // Crear la pregunta principal
+        // Crear la pregunta principal (sin area_id ni sede_id - se usarán en tabla pivote)
         $pregunta = Pregunta::create([
             'pregunta' => $validated['pregunta'],
-            'area_id' => $validated['area_id'] ?? null,
             'niveles_calificacion_id' => $validated['niveles_calificacion_id'],
-            'sede_id' => $validated['sede_id'] ?? null,
             'tipo' => $validated['tipo'],
             'tipo_pregunta' => $validated['tipo_pregunta'] ?? null,
             'is_active' => $validated['is_active'] ?? true
@@ -304,27 +319,23 @@ public function store(Request $request)
  */
 private function crearPreguntasRango($preguntaIndicadorId, $configuracionRangos)
 {
-    $rangosConfig = [
-        '0-6' => [0, 6],
-        '7-8' => [7, 8], 
-        '9-10' => [9, 10]
-    ];
-
-    foreach ($configuracionRangos as $rangoKey => $config) {
+    foreach ($configuracionRangos as $config) {
         // Solo crear si el rango está activo y tiene pregunta
         if ($config['activo'] && !empty(trim($config['pregunta_texto']))) {
-            list($rangoMin, $rangoMax) = $rangosConfig[$rangoKey];
+            // Ahora el rango viene directamente en el objeto
+            $rangoMin = $config['inicio'];
+            $rangoMax = $config['fin'];
 
             // Crear la subpregunta (pregunta de rango)
             $subpregunta = Subpregunta::create([
                 'pregunta_indicador_id' => $preguntaIndicadorId,
                 'pregunta_texto' => trim($config['pregunta_texto']),
                 'tipo' => $config['tipo'],
-                'opciones' => !empty($config['opciones']) 
+                'opciones' => !empty($config['opciones']) && is_array($config['opciones'])
                     ? json_encode(array_map(function($op) { 
-                          return trim($op['texto']); 
+                          return trim($op['texto'] ?? ''); 
                       }, array_filter($config['opciones'], function($op) {
-                          return !empty(trim($op['texto']));
+                          return !empty(trim($op['texto'] ?? ''));
                       })))
                     : null,
                 'is_active' => true,
@@ -336,11 +347,11 @@ private function crearPreguntasRango($preguntaIndicadorId, $configuracionRangos)
             // 🔥 CORRECCIÓN CRÍTICA: Para preguntas de rango de tipo opcion_unica_texto_libre, asegurar opción "Otro"
             if ($config['tipo'] === 'opcion_unica_texto_libre') {
                 $opcionesArray = [];
-                if (!empty($config['opciones'])) {
+                if (!empty($config['opciones']) && is_array($config['opciones'])) {
                     $opcionesArray = array_map(function($op) { 
-                        return trim($op['texto']); 
+                        return trim($op['texto'] ?? ''); 
                     }, array_filter($config['opciones'], function($op) {
-                        return !empty(trim($op['texto']));
+                        return !empty(trim($op['texto'] ?? ''));
                     }));
                 }
                 

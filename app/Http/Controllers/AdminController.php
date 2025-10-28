@@ -30,8 +30,8 @@ class AdminController extends Controller
             // Áreas de esta sede
             $areasQuery->where('sede_id', $sedeId);
             
-            // Preguntas de esta sede
-            $preguntasQuery->where('sede_id', $sedeId);
+            // 🔥 NOTA: Preguntas NO tienen sede_id, son genéricas (CSAT/NPS/FCR)
+            // Si necesitas filtrar preguntas por sede, hay que hacerlo a través de area_pregunta
             
             // Usuarios asignados a esta sede
             $usuariosQuery->where('sede_id', $sedeId);

@@ -9,11 +9,14 @@ class Area extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nombre', 'codigo', 'password', 'is_active', 'sede_id', 'permite_csat', 'permite_nps', 'permite_fcr'];
+    protected $fillable = ['nombre', 'codigo', 'password', 'is_active', 'sede_id', 'permite_csat', 'permite_nps', 'permite_fcr', 'descripcion'];
 
     public function preguntas()
     {
-        return $this->hasMany(Pregunta::class);
+        return $this->belongsToMany(Pregunta::class, 'area_pregunta')
+                    ->withPivot('is_active', 'sede_id')
+                    ->wherePivot('is_active', true)
+                    ->withTimestamps();
     }
     
     // 🔥 NUEVA RELACIÓN: Many-to-Many con preguntas genéricas (CSAT, NPS, FCR)

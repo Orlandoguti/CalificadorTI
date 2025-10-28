@@ -64,7 +64,7 @@ class SedeController extends Controller
 
         // 🔥 NUEVA LÓGICA: Solo devolver sede si está dentro del radio permitido
         // Radio configurado en km - aumentado a 3 km para cubrir campus grandes
-        $radioPermitido = 3.0; // 3 kilómetros para cubrir campus universitarios grandes
+        $radioPermitido = 6.0; // 3 kilómetros para cubrir campus universitarios grandes
         
         // Log detallado para debugging
         Log::info("🔍 Detección de sede:", [

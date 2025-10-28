@@ -18,9 +18,7 @@ public function indexPublic(Request $request)
         
         Log::info("🔍 [PUBLIC] Solicitando áreas públicas para sede_id: " . $sedeId);
         
-        $query = Area::withCount(['preguntas' => function($q) {
-                $q->where('is_active', true);
-            }])
+        $query = Area::withCount('preguntas')
             ->with('sede')
             ->where('is_active', true);
 
@@ -67,9 +65,7 @@ public function indexPublic(Request $request)
             
             Log::info("🔍 Solicitando áreas para sede_id: " . $sedeId);
             
-            $query = Area::withCount(['preguntas' => function($q) {
-                    $q->where('is_active', true);
-                }])
+            $query = Area::withCount('preguntas')
                 ->with('sede')
                 ->where('is_active', true);
 

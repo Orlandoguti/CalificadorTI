@@ -69,7 +69,7 @@
             <div v-else class="areas-grid">
                 <div v-for="area in areas" :key="area.id" class="area-card">
                     <div class="card-header">
-                        <div class="area-code">#{{ area.codigo }}</div>
+                        <div class="area-code">{{ area.codigo }}</div>
                         <div class="area-status">
                             <span :class="['status-badge', area.is_active ? 'active' : 'inactive']">
                                 <i :class="area.is_active ? 'fas fa-check-circle' : 'fas fa-pause-circle'"></i>
@@ -78,17 +78,15 @@
                         </div>
                     </div>
 
-                    <div class="card-content">
-                        <h3 class="area-name">{{ area.nombre }}</h3>
-                        
+                    <div class="card-content">                        
                         <div class="area-meta">
                             <div class="meta-item">
                                 <i class="fas fa-hashtag"></i>
-                                <span>Código: {{ area.codigo }}</span>
+                                <span> <strong>Nombre:</strong> {{ area.nombre }}</span>
                             </div>
                             <div class="meta-item">
                                 <i class="fas fa-map-marker-alt"></i>
-                                <span>Sede: {{ getSedeName(area.sede_id) }}</span>
+                                <span> <strong>Sede:</strong> {{ getSedeName(area.sede_id) }}</span>
                             </div>
                         </div>
 

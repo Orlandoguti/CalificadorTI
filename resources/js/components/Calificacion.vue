@@ -41,7 +41,7 @@
                 <!-- 🔥 NUEVO: Indicadores alternativos si no tiene CSAT -->
                 <div v-else class="indicadores-alt-wrapper">
                     <div v-if="areaSeleccionada.permite_nps" class="indicador-nps-wrapper">
-                        <h3>¿Cómo calificarías tu experiencia?</h3>
+                        <h3>{{ preguntaNPS ? preguntaNPS.pregunta : 'Califica tu experiencia' }}</h3>
                         <div class="indicador-simple-container">
                             <div class="indicador-header">
                                 <div class="indicador-labels">
@@ -51,7 +51,7 @@
                                 </div>
                             </div>
                             
-                            <div class="indicador-track" @mousedown="iniciarArrastreNPS" @touchstart="iniciarArrastreNPS">
+                            <div class="indicador-track" @mousedown="iniciarArrastreNPS" @touchstart="iniciarArrastreNPS" @click="clickIndicadorNPS">
                                 <div class="indicador-progress" :style="{ width: (respuestaIndicadorNPS / 10 * 100) + '%' }"></div>
                                 <div class="indicador-thumb" 
                                      :style="{ left: (respuestaIndicadorNPS / 10 * 100) + '%' }">
@@ -60,7 +60,7 @@
                             </div>
                             
                             <div class="indicador-ticks">
-                                <span v-for="n in 11" :key="n" class="tick" :class="{ active: respuestaIndicadorNPS >= n-1 }">
+                                <span v-for="n in 11" :key="n" class="tick" :class="{ active: respuestaIndicadorNPS >= n-1 }" @click="seleccionarValorNPS(n-1)">
                                     {{ n-1 }}
                                 </span>
                             </div>
@@ -124,6 +124,11 @@
 
 <!-- VISTA PRINCIPAL: PREGUNTA NORMAL O DE RANGO -->
 <template v-if="!modoSubpreguntas">
+    <!-- 🔥 NUEVO: Ocultar pregunta NPS si ya fue respondida desde la vista principal -->
+    <div v-if="preguntaActual === 0 && preguntaActualData.tipo === 'indicador_0_10' && respuestas[preguntaActualData.id] && respuestas[preguntaActualData.id].valor !== undefined" class="pregunta-actual" style="display: none;">
+        <!-- Esta pregunta se oculta automáticamente -->
+    </div>
+    <template v-else>
     <div class="pregunta-actual">
         <div class="pregunta-header">
             <h3 class="pregunta-texto">{{ preguntaActualData.pregunta }}</h3>
@@ -267,6 +272,7 @@
             {{ errorValidacion }}
         </div>
     </div>
+    </template>
 </template>
 
 <!-- VISTA SUBPREGUNTAS -->
@@ -383,7 +389,8 @@
                                 <i class="fas fa-arrow-left"></i> Subpregunta Anterior
                             </button>
                             
-                            <button v-else-if="preguntaActual > 0" 
+                            <!-- 🔥 CORRECCIÓN: No permitir volver si la primera pregunta es un indicador NPS -->
+                            <button v-else-if="preguntaActual > 0 && !(preguntaActual === 1 && preguntas[0] && preguntas[0].tipo === 'indicador_0_10')" 
                                     @click="preguntaAnterior" 
                                     class="btn btn-secondary">
                                 <i class="fas fa-arrow-left"></i> Pregunta Anterior
@@ -416,23 +423,6 @@
                         <div class="final-icon">🎉</div>
                         <h2 class="final-titulo">¡Gracias por tu opinión!</h2>
                         <p class="final-texto">Tu evaluación ha sido registrada exitosamente.</p>
-                        
-                        <div class="final-datos">
-                            <div class="dato-item">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <div>
-                                    <strong>Ubicación</strong>
-                                    <p>{{ sedeNombre }} - {{ areaSeleccionada.nombre }}</p>
-                                </div>
-                            </div>
-                            <div class="dato-item">
-                                <i class="fas fa-star"></i>
-                                <div>
-                                    <strong>Calificación</strong>
-                                    <p>{{ nivelSeleccionado.nombre }}</p>
-                                </div>
-                            </div>
-                        </div>
                         
                         <!-- Barra de progreso para cierre automático -->
                         <div class="cierre-automatico">
@@ -471,6 +461,7 @@ export default {
             sedeNombre: '',
             cargandoDatos: true,
             todasLasPreguntas: [], // 🔥 NUEVO: Para almacenar todas las preguntas
+            preguntaNPS: null, // 🔥 NUEVO: Pregunta NPS para mostrar en el título inicial
             
             // Niveles de calificación
            nivelesCalificacion: [
@@ -770,10 +761,48 @@ respuestaUnica: {
                     return;
                 }
 
+                // 🔥 NUEVO: Cargar pregunta NPS si el área la tiene habilitada
+                if (this.areaSeleccionada.permite_nps) {
+                    await this.cargarPreguntaNPS();
+                }
+
             } catch (error) {
                 console.error('Error cargando datos iniciales:', error);
             } finally {
                 this.cargandoDatos = false;
+            }
+        },
+
+        // 🔥 NUEVO: Cargar pregunta NPS
+        async cargarPreguntaNPS() {
+            try {
+                const sedeGuardada = localStorage.getItem('sede_seleccionada');
+                let sedeId = null;
+                
+                if (this.areaSeleccionada.sede_id) {
+                    sedeId = this.areaSeleccionada.sede_id;
+                } else if (sedeGuardada) {
+                    const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
+                    if (sedeResponse.ok) {
+                        const sedeData = await sedeResponse.json();
+                        sedeId = sedeData.id;
+                    }
+                }
+
+                let url = `/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=1`;
+                if (sedeId) {
+                    url += `&sede_id=${sedeId}`;
+                }
+
+                const response = await fetch(url);
+                if (response.ok) {
+                    const preguntas = await response.json();
+                    // Buscar la pregunta NPS
+                    this.preguntaNPS = preguntas.find(p => p.tipo_pregunta === 'nps' && p.tipo === 'indicador_0_10');
+                    console.log('📝 Pregunta NPS cargada:', this.preguntaNPS);
+                }
+            } catch (error) {
+                console.error('Error cargando pregunta NPS:', error);
             }
         },
 
@@ -808,12 +837,25 @@ respuestaUnica: {
                     const todasLasPreguntas = await response.json();
                     
                     // 🔥 CORRECIÓN: Filtrar solo preguntas raíces para comenzar
-                    this.preguntas = todasLasPreguntas.filter(pregunta => 
-                        !pregunta.es_condicional || pregunta.es_condicional === false
-                    );
+                    this.preguntas = todasLasPreguntas.filter(pregunta => {
+                        // Mostrar solo preguntas raíces (no condicionales)
+                        const esRaiz = !pregunta.es_condicional || pregunta.es_condicional === false;
+                        // Verificar que pertenezca al nivel seleccionado O sea genérica (sin nivel específico)
+                        const esDelNivelCorrecto = pregunta.niveles_calificacion_id == nivel.id || 
+                                                   (pregunta.tipo_pregunta !== null && pregunta.niveles_calificacion_id === null);
+                        
+                        return esRaiz && esDelNivelCorrecto;
+                    });
                     
                     console.log('📝 Preguntas raíces cargadas:', this.preguntas.length);
                     console.log('📝 Todas las preguntas disponibles:', todasLasPreguntas.length);
+                    console.log('🔍 Nivel seleccionado:', nivel.id, nivel.nombre);
+                    console.log('📋 Preguntas filtradas:', this.preguntas.map(p => ({
+                        id: p.id,
+                        pregunta: p.pregunta,
+                        nivel_id: p.niveles_calificacion_id,
+                        tipo: p.tipo_pregunta
+                    })));
                     
                     // 🔥 NUEVO: Guardar todas las preguntas para referencia
                     this.todasLasPreguntas = todasLasPreguntas;
@@ -827,8 +869,11 @@ respuestaUnica: {
                         this.textoLibreOpcion = '';
                         this.opcionTextoLibreSeleccionada = null;
                         this.respuestaLibre = '';
-                        this.respuestaIndicadorValor = 5;
-                        this.respuestaIndicadorNPS = 5;
+                        // 🔥 CORRECCIÓN: Solo resetear si no es NPS y el valor ya no está configurado
+                        if (this.nivelSeleccionado?.nombre !== 'NPS') {
+                            this.respuestaIndicadorValor = 5;
+                            this.respuestaIndicadorNPS = 5;
+                        }
                         this.respuestaFCR = null;
                         // 🔥 Limpiar TODAS las variables de subpreguntas al cambiar de nivel
                         this.modoSubpreguntas = false;
@@ -1431,6 +1476,7 @@ async cargarPreguntaRango(preguntaId, valor) {
             this.respuestas = {};
             this.errorValidacion = '';
             this.respuestaIndicadorValor = 5;
+            this.respuestaIndicadorNPS = 5; // 🔥 NUEVO: Resetear el slider NPS a 5
             this.textoLibreOpcion = '';
             this.opcionTextoLibreSeleccionada = null;
             this.respuestaUnica = null; // AGREGAR ESTA LÍNEA
@@ -2248,10 +2294,50 @@ detenerArrastreNPS() {
     document.removeEventListener('touchend', this.detenerArrastreNPS);
 },
 
+// 🔥 NUEVO: Seleccionar valor NPS directamente
+seleccionarValorNPS(valor) {
+    this.respuestaIndicadorNPS = valor;
+},
+
+// 🔥 NUEVO: Click en el track del slider
+clickIndicadorNPS(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const clientX = event.clientX || (event.touches && event.touches[0].clientX);
+    const percentage = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    this.respuestaIndicadorNPS = Math.round((percentage / 100) * 10);
+},
+
 async iniciarConNPS() {
-    // Simular nivel neutro para áreas con solo NPS
-    this.nivelSeleccionado = { id: 5, nombre: 'NPS', valor: this.respuestaIndicadorNPS };
-    this.iniciarCuestionario(this.nivelSeleccionado);
+    // 🔥 CORRECCIÓN: Usar el nivel correcto desde la base de datos (nivel 1 para NPS)
+    const valorGuardado = this.respuestaIndicadorNPS; // Guardar el valor del slider
+    this.nivelSeleccionado = { id: 1, nombre: 'NPS', valor: valorGuardado };
+    
+    // Sincronizar ambos valores antes de iniciar el cuestionario
+    this.respuestaIndicadorNPS = valorGuardado;
+    this.respuestaIndicadorValor = valorGuardado;
+    
+    await this.iniciarCuestionario(this.nivelSeleccionado);
+    
+    // 🔥 NUEVO: Después de abrir el cuestionario, guardar la respuesta del indicador y cargar subpreguntas
+    if (this.preguntas.length > 0) {
+        const preguntaNPS = this.preguntas[0]; // La primera pregunta es NPS
+        
+        // Guardar la respuesta del indicador NPS
+        if (preguntaNPS.tipo === 'indicador_0_10') {
+            this.respuestas[preguntaNPS.id] = { valor: valorGuardado };
+            console.log('✅ Respuesta NPS guardada:', valorGuardado);
+            
+            // Cargar directamente las subpreguntas de rango
+            const tienePreguntaRango = await this.cargarPreguntaRango(preguntaNPS.id, valorGuardado);
+            
+            if (tienePreguntaRango) {
+                console.log('✅ Subpreguntas de rango cargadas, eliminando pregunta principal NPS');
+                // Eliminar la pregunta principal NPS del array - ya no se mostrará
+                this.preguntas.splice(0, 1);
+                console.log('🗑️ Pregunta NPS principal eliminada del flujo');
+            }
+        }
+    }
 },
 
 async iniciarConFCR(resuelto) {

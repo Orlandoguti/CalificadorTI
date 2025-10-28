@@ -61,11 +61,15 @@
                         <div class="question-id">#{{ pregunta.id }}</div>
                         <div class="question-status">
                             <!-- Badges de tipo y estado juntos -->
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">                                
                                 <!-- Badge de tipo de calificación -->                               
                                 <span :class="['status-badge', 'inactive']">
                                     <i class="fas fa-pause-circle"></i>
                                     {{ getTipoNombre(pregunta.tipo_pregunta) }}
+                                </span>
+                                <span :class="['type-badge', getTipoBadgeClass(pregunta.tipo)]">
+                                    <i :class="getTipoIcon(pregunta.tipo)"></i>
+                                    {{ getTipoText(pregunta.tipo) }}
                                 </span>
                                 <!-- Badge de estado Activa/Inactiva -->
                                 <span :class="['status-badge', pregunta.is_active ? 'active' : 'inactive']">
@@ -80,11 +84,12 @@
                         
                         <h3 class="question-text">{{ pregunta.pregunta }}</h3>
                         
-                        <div class="question-meta">
+                        <!-- 🔥 NUEVO: Solo mostrar nivel de calificación si NO es NPS o FCR (CSAT sí lo muestra) -->
+                        <div v-if="!pregunta.tipo_pregunta || pregunta.tipo_pregunta === 'csat'" class="question-meta">
                             <div class="meta-item">
                                 <i class="fas fa-layer-group"></i>
                                 <span>{{ getNivelName(pregunta.niveles_calificacion_id) }}</span>
-                            </div>
+                            </div>                            
                         </div>
 
                         <!-- 🔥 NUEVO: Badges de áreas participantes (agrupadas) -->
@@ -99,22 +104,19 @@
                             </div>
                         </div>
 
-                        <!-- 🔥 NUEVO: Badge de sede participante -->
-                        <div v-if="pregunta.sede_participante" class="participantes-section">
-                            <div class="participantes-label">Sede:</div>
+                        <!-- 🔥 NUEVO: Badges de sedes participantes (agrupadas) -->
+                        <div v-if="pregunta.sedes_participantes && pregunta.sedes_participantes.length > 0" class="participantes-section">
+                            <div class="participantes-label">Sedes:</div>
                             <div class="badges-container">
-                                <span class="participante-badge sede-badge">
+                                <span v-for="(sede, index) in pregunta.sedes_participantes" :key="`sede-${sede.id}`" class="participante-badge sede-badge">
                                     <i class="fas fa-map-marker-alt"></i>
-                                    {{ pregunta.sede_participante.nombre }}
+                                    {{ sede.nombre }}
                                 </span>
                             </div>
                         </div>
 
                         <div class="question-details">
-                            <span :class="['type-badge', getTipoBadgeClass(pregunta.tipo)]">
-                                <i :class="getTipoIcon(pregunta.tipo)"></i>
-                                {{ getTipoText(pregunta.tipo) }}
-                            </span>
+                            
                             <span v-if="pregunta.tipo !== 'texto_libre'" class="options-count">
                                 <i class="fas fa-list-ul"></i>
                                 {{ pregunta.opciones_count || 0 }} opciones
@@ -274,12 +276,13 @@
                             ></textarea>
                         </div>
                         <div class="form-row">
-                            <div class="form-group">
+                            <!-- NPS no usa niveles de calificación tradicionales, solo escala 0-10 -->
+                            <div v-if="!tipoSeleccionado || tipoSeleccionado.codigo !== 'nps'" class="form-group">
                                 <label class="form-label">
                                     <i class="fas fa-layer-group"></i>
                                     Nivel de Calificación *
                                 </label>
-                                <select v-model="preguntaForm.niveles_calificacion_id" class="form-select" required>
+                                <select v-model="preguntaForm.niveles_calificacion_id" class="form-select" :required="!tipoSeleccionado || tipoSeleccionado.codigo !== 'nps'">
                                     <option value="">Seleccionar nivel</option>
                                     <option v-for="nivel in nivelesCalificacion" :key="nivel.id" :value="nivel.id">
                                         {{ nivel.nombre }}
@@ -287,18 +290,27 @@
                                 </select>
                             </div>
 
-                            <div class="form-group">
+                            <!-- Para NPS, el tipo de pregunta está predefinido (Indicador 0-10) -->
+                            <div v-if="tipoSeleccionado && tipoSeleccionado.codigo === 'nps'" class="form-group full-width">
+                                <div class="info-badge" style="background: #e8f4f8; border: 1px solid #b3d7e8; padding: 1rem; border-radius: 8px; text-align: center;">
+                                    <i class="fas fa-info-circle" style="color: #1890ff; font-size: 1.2rem;"></i>
+                                    <p style="margin: 0.5rem 0 0 0; color: #666;">
+                                        <strong>Tipo de Pregunta:</strong> Indicador 0-10 (Predefinido para NPS)
+                                    </p>
+                                </div>
+                            </div>
+                            <div v-else :class="['form-group', (!tipoSeleccionado || tipoSeleccionado.codigo !== 'nps') ? '' : 'full-width']">
                                 <label class="form-label">
                                     <i class="fas fa-list"></i>
                                     Tipo de Pregunta *
                                 </label>
                                 <select v-model="preguntaForm.tipo" @change="cambiarTipoPregunta" class="form-select" required>
                                     <option value="">Seleccionar tipo</option>
-                                    <option value="opcion_unica">Opción Única</option>
-                                    <option value="opcion_multiple">Opción Múltiple</option>
-                                    <option value="texto_libre">Texto Libre</option>
-                                    <option value="indicador_0_10">Indicador 0-10</option>
-                                    <option value="opcion_unica_texto_libre">Opción Única con Texto Libre</option>
+                                    <option v-for="tipoDisponible in tiposPreguntaDisponibles" 
+                                            :key="tipoDisponible.value" 
+                                            :value="tipoDisponible.value">
+                                        {{ tipoDisponible.label }}
+                                    </option>
                                 </select>
                             </div>
                         </div>
@@ -388,16 +400,47 @@
                         <div v-if="mostrandoConfiguracionRangos" class="configuracion-rangos">
                             <div class="seccion-titulo">
                                 <h4>🔄 Configurar Preguntas por Rango</h4>
-                                <p>Define preguntas específicas según la puntuación del usuario</p>
+                                <p>Define preguntas específicas según la puntuación del usuario (escala 0-10)</p>
                             </div>
 
-                            <div v-for="(rango, rangoKey) in configuracionRangos" :key="rangoKey" class="rango-item">
+                            <div v-for="(rango, index) in configuracionRangos" :key="index" class="rango-item">
                                 <div class="rango-header">
                                     <div class="rango-info">
-                                        <h5>{{ getTextoRango(rangoKey) }}</h5>
-                                        <span class="rango-valores">{{ rangoKey }}</span>
+                                        <h5>Rango {{ index + 1 }}</h5>
+                                        <div class="rango-valores-inputs" style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                            <input 
+                                                type="number" 
+                                                v-model.number="rango.inicio"
+                                                min="0"
+                                                max="10"
+                                                class="form-input"
+                                                style="width: 80px;"
+                                                placeholder="Inicio"
+                                                @change="validarRango(index)"
+                                            >
+                                            <span>-</span>
+                                            <input 
+                                                type="number" 
+                                                v-model.number="rango.fin"
+                                                min="0"
+                                                max="10"
+                                                class="form-input"
+                                                style="width: 80px;"
+                                                placeholder="Fin"
+                                                @change="validarRango(index)"
+                                            >
+                                        </div>
+                                        <span class="rango-valores" style="display: block; margin-top: 0.5rem;">{{ rango.inicio }}-{{ rango.fin }}</span>
                                     </div>
-                                    <div class="rango-toggle">
+                                    <div class="rango-toggle" style="display: flex; align-items: center; gap: 1rem;">
+                                        <button 
+                                            type="button" 
+                                            @click="eliminarRango(index)"
+                                            class="btn-icon danger full-width"
+                                            title="Eliminar rango"
+                                        >
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                         <label class="toggle-label">
                                             <input 
                                                 type="checkbox" 
@@ -405,7 +448,7 @@
                                                 class="toggle-input"
                                             >
                                             <span class="toggle-slider"></span>
-                                            <span class="toggle-text">{{ rango.activo ? 'Activado' : 'Desactivado' }}</span>
+                                            <span class="toggle-text">{{ rango.activo ? 'Activo' : 'Inactivo' }}</span>
                                         </label>
                                     </div>
                                 </div>
@@ -415,7 +458,7 @@
                                         <label>Pregunta para este rango *</label>
                                         <textarea 
                                             v-model="rango.pregunta_texto"
-                                            :placeholder="`Ej: ${getTextoEjemploRango(rangoKey)}`"
+                                            placeholder="Ej: ¿Podría decirnos el motivo por el que calificó su experiencia de esta manera?"
                                             rows="2"
                                             class="form-textarea"
                                             required
@@ -424,7 +467,7 @@
 
                                     <div class="form-group">
                                         <label>Tipo de Pregunta *</label>
-                                        <select v-model="rango.tipo" required class="form-select" @change="cambiarTipoRango(rangoKey)">
+                                        <select v-model="rango.tipo" required class="form-select" @change="cambiarTipoRango(index)">
                                             <option value="opcion_unica">Opción Única</option>
                                             <option value="opcion_multiple">Opción Múltiple</option>
                                             <option value="texto_libre">Texto Libre</option>
@@ -437,17 +480,17 @@
                                          class="form-group">
                                         <label>Opciones de Respuesta *</label>
                                         <div class="opciones-container">
-                                            <div v-for="(opcion, index) in rango.opciones" :key="index" class="opcion-input-item">
+                                            <div v-for="(opcion, opcionIndex) in rango.opciones" :key="opcionIndex" class="opcion-input-item">
                                                 <input 
                                                     v-model="opcion.texto"
                                                     type="text"
-                                                    :placeholder="`Opción ${index + 1}`"
+                                                    :placeholder="`Opción ${opcionIndex + 1}`"
                                                     required
                                                     class="form-input opcion-input"
                                                 >
                                                 <button 
                                                     type="button" 
-                                                    @click="eliminarOpcionRango(rangoKey, index)"
+                                                    @click="eliminarOpcionRango(index, opcionIndex)"
                                                     class="btn-icon danger"
                                                     :disabled="rango.opciones.length <= 2"
                                                     title="Eliminar opción"
@@ -455,7 +498,7 @@
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             </div>
-                                            <button type="button" @click="agregarOpcionRango(rangoKey)" class="btn btn-outline">
+                                            <button type="button" @click="agregarOpcionRango(index)" class="btn btn-outline">
                                                 <i class="fas fa-plus"></i> Agregar Opción
                                             </button>
                                         </div>
@@ -463,10 +506,25 @@
                                 </div>
                             </div>
 
+                            <!-- Mensaje cuando no hay rangos -->
+                            <div v-if="configuracionRangos.length === 0" class="empty-rangos" style="text-align: center; padding: 2rem; background: #f8f9fa; border-radius: 8px; margin-top: 1rem;">
+                                <i class="fas fa-inbox" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
+                                <p style="color: #666; margin-bottom: 1rem;">
+                                    No hay rangos configurados. Agrega rangos para personalizar las preguntas según la puntuación.
+                                </p>
+                            </div>
+
+                            <!-- Botón para agregar nuevos rangos -->
+                            <div class="agregar-rango-container" style="margin-top: 1rem;">
+                                <button type="button" @click="agregarRango" class="btn btn-secondary">
+                                    <i class="fas fa-plus"></i> Agregar Nuevo Rango
+                                </button>
+                            </div>
+
                             <div class="rangos-info">
                                 <i class="fas fa-info-circle"></i>
                                 <span v-if="totalRangosActivos > 0">
-                                    {{ totalRangosActivos }} de 3 rangos configurados
+                                    {{ totalRangosActivos }} rango(s) configurado(s) de {{ configuracionRangos.length }}
                                 </span>
                                 <span v-else>
                                     Ningún rango configurado - El indicador funcionará sin preguntas adicionales
@@ -676,27 +734,18 @@ export default {
             unsubscribe: null,
 
             // 🔥 NUEVO: Configuración de rangos para indicadores
-            configuracionRangos: {
-                '0-6': {
-                    activo: false,
-                    pregunta_texto: '',
-                    tipo: 'opcion_unica',
-                    opciones: [{ texto: '' }, { texto: '' }]
-                },
-                '7-8': {
-                    activo: false, 
-                    pregunta_texto: '',
-                    tipo: 'opcion_unica',
-                    opciones: [{ texto: '' }, { texto: '' }]
-                },
-                '9-10': {
-                    activo: false,
-                    pregunta_texto: '',
-                    tipo: 'opcion_unica', 
-                    opciones: [{ texto: '' }, { texto: '' }]
-                }
+            configuracionRangos: [],
+            nuevoRango: {
+                inicio: 0,
+                fin: 6,
+                activo: true,
+                pregunta_texto: '',
+                tipo: 'opcion_unica',
+                opciones: [{ texto: '' }, { texto: '' }]
             },
             mostrandoConfiguracionRangos: false,
+            // 🔥 NUEVO: Bandera para evitar loops en el watcher de opciones
+            reorganizandoOpciones: false,
 
             // Formularios
             preguntaForm: {
@@ -747,7 +796,84 @@ export default {
         
         // 🔥 NUEVO: Contar rangos activos
         totalRangosActivos() {
-            return Object.values(this.configuracionRangos).filter(rango => rango.activo).length;
+            return this.configuracionRangos.filter(rango => rango.activo).length;
+        },
+        
+        // 🔥 NUEVO: Filtrar tipos de pregunta disponibles según el tipo de calificación
+        tiposPreguntaDisponibles() {
+            const todosLosTipos = [
+                { value: 'opcion_unica', label: 'Opción Única' },
+                { value: 'opcion_multiple', label: 'Opción Múltiple' },
+                { value: 'texto_libre', label: 'Texto Libre' },
+                { value: 'indicador_0_10', label: 'Indicador 0-10' },
+                { value: 'opcion_unica_texto_libre', label: 'Opción Única con Texto Libre' }
+            ];
+            
+            // Si no hay tipo de calificación seleccionado, mostrar todos los tipos
+            if (!this.tipoSeleccionado) {
+                return todosLosTipos;
+            }
+            
+            // Filtrar según el tipo de calificación
+            const tipoCalificacion = this.tipoSeleccionado.codigo;
+            
+            switch(tipoCalificacion) {
+                case 'nps':
+                    // NPS debe tener el indicador 0-10 (y otras opciones si es necesario)
+                    return todosLosTipos; // NPS puede usar todos los tipos
+                    
+                case 'csat':
+                    // CSAT NO debe tener indicador 0-10 (es para caritas/emojis)
+                    return todosLosTipos.filter(tipo => tipo.value !== 'indicador_0_10');
+                    
+                case 'fcr':
+                    // FCR NO debe tener indicador 0-10 (es para manitas)
+                    return todosLosTipos.filter(tipo => tipo.value !== 'indicador_0_10');
+                    
+                default:
+                    return todosLosTipos;
+            }
+        }
+    },
+    
+    watch: {
+        // 🔥 Validar que el tipo de pregunta actual sea válido cuando cambie el tipo de calificación
+        tipoSeleccionado(newVal, oldVal) {
+            if (newVal && newVal !== oldVal && this.preguntaForm.tipo) {
+                // Verificar si el tipo actual está disponible
+                const tiposDisponibles = this.tiposPreguntaDisponibles.map(t => t.value);
+                if (!tiposDisponibles.includes(this.preguntaForm.tipo)) {
+                    // Si el tipo actual no está disponible, cambiar al primer tipo disponible
+                    this.preguntaForm.tipo = tiposDisponibles[0];
+                }
+            }
+        },
+        
+        // 🔥 NUEVO: Asegurar que "Otro" siempre esté al final en opcion_unica_texto_libre
+        'preguntaForm.opciones': {
+            handler(opciones) {
+                // Evitar loops infinitos
+                if (this.reorganizandoOpciones) return;
+                
+                if (this.preguntaForm.tipo === 'opcion_unica_texto_libre' && opciones && opciones.length > 0) {
+                    const indiceOtro = opciones.findIndex(op => this.esOpcionOtro(op.texto));
+                    
+                    if (indiceOtro !== -1 && indiceOtro !== opciones.length - 1) {
+                        // Activar bandera para evitar loop
+                        this.reorganizandoOpciones = true;
+                        
+                        // Mover "Otro" al final
+                        const opcionOtro = this.preguntaForm.opciones.splice(indiceOtro, 1)[0];
+                        this.preguntaForm.opciones.push(opcionOtro);
+                        
+                        // Desactivar bandera después de un pequeño delay
+                        this.$nextTick(() => {
+                            this.reorganizandoOpciones = false;
+                        });
+                    }
+                }
+            },
+            deep: true
         }
     },
 
@@ -1132,16 +1258,24 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             // Determinar tipo de pregunta por defecto según el tipo de calificación
             let tipoPreguntaDefault = 'opcion_unica';
             let opcionesDefault = [{ texto: '' }, { texto: '' }];
+            let nivelDefault = ''; // Por defecto vacío
             
             if (this.tipoSeleccionado?.codigo === 'nps') {
                 tipoPreguntaDefault = 'indicador_0_10';
                 opcionesDefault = [];
+                // Para NPS, usar el primer nivel disponible (se usará internamente pero no se muestra en el formulario)
+                nivelDefault = this.nivelesCalificacion.length > 0 ? this.nivelesCalificacion[0].id : '';
+                
+                // Inicializar configuración de rangos para NPS - empezar sin rangos
+                this.configuracionRangos = [];
+                this.mostrandoConfiguracionRangos = true;
             } else if (this.tipoSeleccionado?.codigo === 'fcr') {
                 tipoPreguntaDefault = 'opcion_unica';
                 opcionesDefault = [
                     { texto: 'Sí' },
                     { texto: 'No' }
                 ];
+                nivelDefault = this.nivelesCalificacion.length > 0 ? this.nivelesCalificacion[0].id : '';
             }
             
             this.preguntaForm = {
@@ -1150,7 +1284,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 tipo: tipoPreguntaDefault,
                 tipo_pregunta: this.tipoSeleccionado?.codigo || null,
                 area_id: null,
-                niveles_calificacion_id: '', // Inicializar como string vacío para que muestre placeholder
+                niveles_calificacion_id: nivelDefault,
                 sede_id: this.sedeActual ? this.sedeActual.id : null,
                 opciones: opcionesDefault,
                 is_active: true
@@ -1197,6 +1331,19 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 opciones = [{ texto: '' }, { texto: '' }];
             }
 
+            // 🔥 NUEVO: Si es opcion_unica_texto_libre, asegurar que "Otro" esté al final
+            if (pregunta.tipo === 'opcion_unica_texto_libre' && opciones.length > 0) {
+                const indiceOtro = opciones.findIndex(op => 
+                    this.esOpcionOtro(op.texto)
+                );
+                
+                if (indiceOtro !== -1 && indiceOtro !== opciones.length - 1) {
+                    // Mover "Otro" al final
+                    const opcionOtro = opciones.splice(indiceOtro, 1)[0];
+                    opciones.push(opcionOtro);
+                }
+            }
+
             this.preguntaForm = {
                 id: pregunta.id,
                 pregunta: pregunta.pregunta,
@@ -1239,6 +1386,13 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
 
         // 🔥 NUEVO: Cambiar tipo de pregunta
         cambiarTipoPregunta() {
+            // Validar si el tipo actual está disponible según el tipo de calificación
+            const tiposDisponibles = this.tiposPreguntaDisponibles.map(t => t.value);
+            if (!tiposDisponibles.includes(this.preguntaForm.tipo)) {
+                // Si el tipo actual no está disponible, cambiar al primer tipo disponible
+                this.preguntaForm.tipo = tiposDisponibles[0];
+            }
+            
             if (!this.mostrarOpcionesPregunta) {
                 this.preguntaForm.opciones = [];
             } else if (this.preguntaForm.opciones.length === 0) {
@@ -1256,27 +1410,75 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 this.resetearConfiguracionRangos();
             }
             
-            // Para opcion_unica_texto_libre, asegurar opción "Otro"
+            // Para opcion_unica_texto_libre, asegurar opción "Otro" al final
             if (this.preguntaForm.tipo === 'opcion_unica_texto_libre') {
-                const tieneOpcionOtro = this.preguntaForm.opciones.some(op => 
-                    op.texto && (op.texto.toLowerCase().includes('otro') || op.texto.toLowerCase().includes('especifique'))
+                // Buscar índice de la opción "Otro"
+                const indiceOtro = this.preguntaForm.opciones.findIndex(op => 
+                    this.esOpcionOtro(op.texto)
                 );
                 
-                if (!tieneOpcionOtro) {
+                if (indiceOtro === -1) {
+                    // Si no existe "Otro", agregarlo al final
                     this.preguntaForm.opciones.push({ texto: 'Otro - especifique' });
+                } else if (indiceOtro !== this.preguntaForm.opciones.length - 1) {
+                    // Si existe pero no está al final, moverlo al final
+                    const opcionOtro = this.preguntaForm.opciones.splice(indiceOtro, 1)[0];
+                    this.preguntaForm.opciones.push(opcionOtro);
                 }
             }
         },
 
         // 🔥 NUEVO: Agregar opción a pregunta
         agregarOpcionPregunta() {
-            this.preguntaForm.opciones.push({ texto: '' });
+            // Si es tipo opcion_unica_texto_libre, asegurar que "Otro" esté al final
+            if (this.preguntaForm.tipo === 'opcion_unica_texto_libre') {
+                // Buscar índice de la opción "Otro"
+                const indiceOtro = this.preguntaForm.opciones.findIndex(op => 
+                    this.esOpcionOtro(op.texto)
+                );
+                
+                let opcionOtro = null;
+                if (indiceOtro !== -1) {
+                    // Guardar la opción "Otro" y removerla
+                    opcionOtro = this.preguntaForm.opciones.splice(indiceOtro, 1)[0];
+                }
+                
+                // Agregar la nueva opción
+                this.preguntaForm.opciones.push({ texto: '' });
+                
+                // Si había opción "Otro", agregarla al final
+                if (opcionOtro) {
+                    this.preguntaForm.opciones.push(opcionOtro);
+                }
+            } else {
+                // Para otros tipos, agregar normalmente
+                this.preguntaForm.opciones.push({ texto: '' });
+            }
         },
 
         // 🔥 NUEVO: Eliminar opción de pregunta
         eliminarOpcionPregunta(index) {
             if (this.preguntaForm.opciones.length > 2) {
-                this.preguntaForm.opciones.splice(index, 1);
+                // Verificar si la opción a eliminar es "Otro"
+                const esOtraOpcionOtro = this.esOpcionOtro(this.preguntaForm.opciones[index].texto);
+                
+                if (!esOtraOpcionOtro) {
+                    // Solo eliminar si NO es "Otro"
+                    this.preguntaForm.opciones.splice(index, 1);
+                    
+                    // 🔥 NUEVO: Si es tipo opcion_unica_texto_libre, asegurar que "Otro" esté al final
+                    if (this.preguntaForm.tipo === 'opcion_unica_texto_libre') {
+                        const indiceOtro = this.preguntaForm.opciones.findIndex(op => 
+                            this.esOpcionOtro(op.texto)
+                        );
+                        
+                        if (indiceOtro !== -1 && indiceOtro !== this.preguntaForm.opciones.length - 1) {
+                            // Mover "Otro" al final
+                            const opcionOtro = this.preguntaForm.opciones.splice(indiceOtro, 1)[0];
+                            this.preguntaForm.opciones.push(opcionOtro);
+                        }
+                    }
+                }
             }
         },
 
@@ -1638,17 +1840,39 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
 
         // 🔥 NUEVO: Resetear configuración de rangos
         resetearConfiguracionRangos() {
-            this.configuracionRangos = {
-                '0-6': { activo: false, pregunta_texto: '', tipo: 'opcion_unica', opciones: [{ texto: '' }, { texto: '' }] },
-                '7-8': { activo: false, pregunta_texto: '', tipo: 'opcion_unica', opciones: [{ texto: '' }, { texto: '' }] },
-                '9-10': { activo: false, pregunta_texto: '', tipo: 'opcion_unica', opciones: [{ texto: '' }, { texto: '' }] }
-            };
+            this.configuracionRangos = [];
             this.mostrandoConfiguracionRangos = false;
         },
 
+        // 🔥 NUEVO: Agregar nuevo rango
+        agregarRango() {
+            const nuevoRango = {
+                inicio: 0,
+                fin: 6,
+                activo: true,
+                pregunta_texto: '',
+                tipo: 'opcion_unica',
+                opciones: [{ texto: '' }, { texto: '' }]
+            };
+            this.configuracionRangos.push(nuevoRango);
+        },
+
+        // 🔥 NUEVO: Eliminar rango
+        eliminarRango(index) {
+            this.configuracionRangos.splice(index, 1);
+        },
+
+        // 🔥 NUEVO: Validar rango (inicio debe ser menor que fin)
+        validarRango(index) {
+            const rango = this.configuracionRangos[index];
+            if (rango.inicio > rango.fin) {
+                rango.fin = rango.inicio;
+            }
+        },
+
         // 🔥 NUEVO: Cuando cambia el tipo de un rango
-        cambiarTipoRango(rangoKey) {
-            const rango = this.configuracionRangos[rangoKey];
+        cambiarTipoRango(index) {
+            const rango = this.configuracionRangos[index];
             
             if (!['opcion_unica', 'opcion_multiple', 'opcion_unica_texto_libre'].includes(rango.tipo)) {
                 rango.opciones = [];
@@ -1656,50 +1880,81 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 rango.opciones = [{ texto: '' }, { texto: '' }];
             }
             
-            // Para opcion_unica_texto_libre, asegurar opción "Otro"
+            // Para opcion_unica_texto_libre, asegurar opción "Otro" al final
             if (rango.tipo === 'opcion_unica_texto_libre') {
-                const tieneOpcionOtro = rango.opciones.some(op => 
-                    op.texto && (op.texto.toLowerCase().includes('otro') || op.texto.toLowerCase().includes('especifique'))
+                const indiceOtro = rango.opciones.findIndex(op => 
+                    this.esOpcionOtro(op.texto)
                 );
                 
-                if (!tieneOpcionOtro) {
+                if (indiceOtro === -1) {
+                    // Si no existe "Otro", agregarlo al final
                     rango.opciones.push({ texto: 'Otro - especifique' });
+                } else if (indiceOtro !== rango.opciones.length - 1) {
+                    // Si existe pero no está al final, moverlo al final
+                    const opcionOtro = rango.opciones.splice(indiceOtro, 1)[0];
+                    rango.opciones.push(opcionOtro);
                 }
             }
         },
 
         // 🔥 NUEVO: Agregar opción a un rango
-        agregarOpcionRango(rangoKey) {
-            this.configuracionRangos[rangoKey].opciones.push({ texto: '' });
-        },
-
-        // 🔥 NUEVO: Eliminar opción de un rango
-        eliminarOpcionRango(rangoKey, index) {
-            const opciones = this.configuracionRangos[rangoKey].opciones;
-            if (opciones.length > 2) {
-                opciones.splice(index, 1);
+        agregarOpcionRango(index) {
+            const rango = this.configuracionRangos[index];
+            
+            // Si es tipo opcion_unica_texto_libre, asegurar que "Otro" esté al final
+            if (rango.tipo === 'opcion_unica_texto_libre') {
+                const indiceOtro = rango.opciones.findIndex(op => 
+                    this.esOpcionOtro(op.texto)
+                );
+                
+                let opcionOtro = null;
+                if (indiceOtro !== -1) {
+                    // Guardar la opción "Otro" y removerla
+                    opcionOtro = rango.opciones.splice(indiceOtro, 1)[0];
+                }
+                
+                // Agregar la nueva opción
+                rango.opciones.push({ texto: '' });
+                
+                // Si había opción "Otro", agregarla al final
+                if (opcionOtro) {
+                    rango.opciones.push(opcionOtro);
+                }
+            } else {
+                // Para otros tipos, agregar normalmente
+                rango.opciones.push({ texto: '' });
             }
         },
 
-        // 🔥 NUEVO: Obtener texto descriptivo del rango
-        getTextoRango(rangoKey) {
-            const textos = {
-                '0-6': 'Puntuaciones Bajas (0-6) - Detractores',
-                '7-8': 'Puntuaciones Medias (7-8) - Pasivos', 
-                '9-10': 'Puntuaciones Altas (9-10) - Promotores'
-            };
-            return textos[rangoKey] || rangoKey;
+        // 🔥 NUEVO: Eliminar opción de un rango
+        eliminarOpcionRango(index, opcionIndex) {
+            const opciones = this.configuracionRangos[index].opciones;
+            const rango = this.configuracionRangos[index];
+            
+            if (opciones.length > 2) {
+                // Verificar si la opción a eliminar es "Otro"
+                const esOtraOpcionOtro = this.esOpcionOtro(opciones[opcionIndex].texto);
+                
+                if (!esOtraOpcionOtro) {
+                    // Solo eliminar si NO es "Otro"
+                    opciones.splice(opcionIndex, 1);
+                    
+                    // 🔥 NUEVO: Si es tipo opcion_unica_texto_libre, asegurar que "Otro" esté al final
+                    if (rango.tipo === 'opcion_unica_texto_libre') {
+                        const indiceOtro = opciones.findIndex(op => 
+                            this.esOpcionOtro(op.texto)
+                        );
+                        
+                        if (indiceOtro !== -1 && indiceOtro !== opciones.length - 1) {
+                            // Mover "Otro" al final
+                            const opcionOtro = opciones.splice(indiceOtro, 1)[0];
+                            opciones.push(opcionOtro);
+                        }
+                    }
+                }
+            }
         },
 
-        // 🔥 NUEVO: Obtener texto de ejemplo para cada rango
-        getTextoEjemploRango(rangoKey) {
-            const ejemplos = {
-                '0-6': '¿Podría decirnos el motivo principal por el que calificó su experiencia de esta manera?',
-                '7-8': '¿Qué podríamos haber hecho para que su experiencia fuera mejor?',
-                '9-10': '¿Qué fue lo que más le gustó de su experiencia con nosotros?'
-            };
-            return ejemplos[rangoKey] || 'Escribe la pregunta para este rango...';
-        },
 
         esOpcionOtro(opcionTexto) {
             if (!opcionTexto) return false;
