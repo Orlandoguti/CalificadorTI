@@ -138,14 +138,6 @@
       </svg>
     </button>
 
-    <!-- Subpreguntas -->
-    <button @click="gestionarSubpreguntas(pregunta)" class="action-btn subpreguntas"
-            :title="pregunta.opciones && pregunta.opciones.some(op => op.tiene_subpreguntas) ? 'Ver subpreguntas' : 'Gestionar subpreguntas'">
-      <svg width="16" height="16" viewBox="0 0 512 512" fill="#28a745" xmlns="http://www.w3.org/2000/svg">
-        <path d="M32 32c17.7 0 32 14.3 32 32V400c0 8.8 7.2 16 16 16H480c17.7 0 32 14.3 32 32s-14.3 32-32 32H80c-44.2 0-80-35.8-80-80V64C0 46.3 14.3 32 32 32zm128 64c0-17.7 14.3-32 32-32h192c17.7 0 32 14.3 32 32v96c0 17.7-14.3 32-32 32H192c-17.7 0-32-14.3-32-32V96zm0 160c0-17.7 14.3-32 32-32h192c17.7 0 32 14.3 32 32v96c0 17.7-14.3 32-32 32H192c-17.7 0-32-14.3-32-32V256z"/>
-      </svg>
-    </button>
-
     <!-- Activar / Desactivar -->
     <button @click="togglePreguntaStatus(pregunta)"
             :title="pregunta.is_active ? 'Desactivar' : 'Activar'"
@@ -268,13 +260,13 @@
                             ></textarea>
                         </div>
                         <div class="form-row">
-                            <!-- NPS no usa niveles de calificación tradicionales, solo escala 0-10 -->
-                            <div v-if="!tipoSeleccionado || tipoSeleccionado.codigo !== 'nps'" class="form-group">
+                            <!-- NPS y FCR no usan niveles de calificación tradicionales -->
+                            <div v-if="!tipoSeleccionado || (tipoSeleccionado.codigo !== 'nps' && tipoSeleccionado.codigo !== 'fcr')" class="form-group">
                                 <label class="form-label">
                                     <i class="fas fa-layer-group"></i>
                                     Nivel de Calificación *
                                 </label>
-                                <select v-model="preguntaForm.niveles_calificacion_id" class="form-select" :required="!tipoSeleccionado || tipoSeleccionado.codigo !== 'nps'">
+                                <select v-model="preguntaForm.niveles_calificacion_id" class="form-select" :required="!tipoSeleccionado || (tipoSeleccionado.codigo !== 'nps' && tipoSeleccionado.codigo !== 'fcr')">
                                     <option value="">Seleccionar nivel</option>
                                     <option v-for="nivel in nivelesCalificacion" :key="nivel.id" :value="nivel.id">
                                         {{ nivel.nombre }}
@@ -291,7 +283,12 @@
                                     </p>
                                 </div>
                             </div>
-                            <div v-else :class="['form-group', (!tipoSeleccionado || tipoSeleccionado.codigo !== 'nps') ? '' : 'full-width']">
+
+                            <!-- Para FCR, el tipo de pregunta está predefinido (Opción Única con Sí/No) -->
+                            <!-- Ocultar selector de tipo de pregunta para FCR -->
+                            <div v-if="esPreguntaFCR" class="form-group full-width" style="display: none;">
+                            </div>
+                            <div v-else-if="!esPreguntaFCR && (!tipoSeleccionado || tipoSeleccionado.codigo !== 'nps')" :class="['form-group', (!tipoSeleccionado || tipoSeleccionado.codigo !== 'nps') ? '' : 'full-width']">
                                 <label class="form-label">
                                     <i class="fas fa-list"></i>
                                     Tipo de Pregunta *
@@ -352,6 +349,9 @@
                                 <span v-if="preguntaForm.tipo === 'opcion_unica_texto_libre'" class="badge-info">
                                     <i class="fas fa-info-circle"></i> La opción "Otro" se agregará automáticamente
                                 </span>
+                                <span v-if="esPreguntaFCR" class="badge-info" style="background: #22c55e; color: white;">
+                                    <i class="fas fa-hand-peace"></i> Las opciones Sí/No son fijas para FCR
+                                </span>
                             </label>
                             <div class="opciones-container">
                                 <div v-for="(opcion, index) in preguntaForm.opciones" 
@@ -359,33 +359,96 @@
                                     class="opcion-input-item"
                                     :class="{ 
                                         'opcion-otro': esOpcionOtro(opcion.texto),
-                                        'ultima-opcion': preguntaForm.tipo === 'opcion_unica_texto_libre' && index === preguntaForm.opciones.length - 1
+                                        'ultima-opcion': preguntaForm.tipo === 'opcion_unica_texto_libre' && index === preguntaForm.opciones.length - 1,
+                                        'opcion-fcr': esPreguntaFCR
                                     }">
                                     <input 
                                         type="text"
                                         v-model="opcion.texto"
                                         :placeholder="`Opción ${index + 1}`"
                                         class="form-input opcion-input"
-                                        :readonly="preguntaForm.tipo === 'opcion_unica_texto_libre' && esOpcionOtro(opcion.texto)"
-                                        required
+                                        :readonly="esPreguntaFCR || (preguntaForm.tipo === 'opcion_unica_texto_libre' && esOpcionOtro(opcion.texto))"
+                                        :required="!esPreguntaFCR"
                                     >
                                     <button 
                                         type="button" 
                                         @click="eliminarOpcionPregunta(index)"
                                         class="btn-icon danger"
-                                        :disabled="preguntaForm.opciones.length <= 2 || (preguntaForm.tipo === 'opcion_unica_texto_libre' && esOpcionOtro(opcion.texto))"
-                                        :title="esOpcionOtro(opcion.texto) ? 'No se puede eliminar esta opción' : 'Eliminar opción'"
+                                        :disabled="esPreguntaFCR || preguntaForm.opciones.length <= 2 || (preguntaForm.tipo === 'opcion_unica_texto_libre' && esOpcionOtro(opcion.texto))"
+                                        :title="esPreguntaFCR ? 'Las opciones FCR son fijas' : (esOpcionOtro(opcion.texto) ? 'No se puede eliminar esta opción' : 'Eliminar opción')"
                                     >
                                         <i class="fas fa-times"></i>
                                     </button>
                                     <div v-if="esOpcionOtro(opcion.texto)" class="opcion-otro-badge">
                                         <i class="fas fa-comment"></i> Campo de texto libre
                                     </div>
+                                    <div v-if="esPreguntaFCR" class="opcion-fcr-badge">
+                                        <i class="fas fa-lock"></i>
+                                    </div>
                                 </div>
-                                <div class="btn-agregar-wrapper">
-                                    <button type="button" @click="agregarOpcionPregunta" class="btn btn-outline btn-agregar">
+                                <div v-if="!esPreguntaFCR" class="btn-agregar-wrapper">
+                                    <button 
+                                        type="button" 
+                                        @click="agregarOpcionPregunta" 
+                                        class="btn btn-outline btn-agregar"
+                                        title="Agregar Opción"
+                                    >
                                         <i class="fas fa-plus"></i> Agregar Opción
                                     </button>
+                                </div>
+                            </div>
+                            <!-- 🔥 NUEVA SECCIÓN: Subpreguntas para FCR -->
+                            <div v-if="esPreguntaFCR" class="subpreguntas-fcr-container" style="margin-top: 2rem;">
+                                <div class="seccion-titulo" style="margin-bottom: 1.5rem;">
+                                    <h4><i class="fas fa-question-circle"></i> Subpreguntas (Opcional)</h4>
+                                    <p>Agrega preguntas adicionales para cada respuesta</p>
+                                </div>
+
+                                <div v-for="(opcion, index) in preguntaForm.opciones" :key="index" class="subpregunta-fcr-seccion" style="margin-bottom: 2rem; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; background: #f9fafb;">
+                                    <div class="subpregunta-fcr-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                        <h5 style="margin: 0; color: #374151;">
+                                            <i class="fas fa-hand-point-right" style="color: #22c55e;"></i>
+                                            Para la respuesta: <strong>{{ opcion.texto }}</strong>
+                                        </h5>
+                                        <button type="button" @click="agregarSubpreguntaFCR(index)" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-plus"></i> Agregar Subpregunta
+                                        </button>
+                                    </div>
+
+                                    <!-- Lista de subpreguntas para esta opción -->
+                                    <div v-if="opcion.subpreguntas && opcion.subpreguntas.length > 0" class="subpreguntas-list-fcr">
+                                        <div v-for="(subpregunta, subIndex) in opcion.subpreguntas" :key="subIndex" class="subpregunta-item-fcr" style="background: white; padding: 1rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 3px solid #22c55e;">
+                                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                                <div style="flex: 1;">
+                                                    <div style="font-weight: 600; margin-bottom: 0.5rem; color: #374151;">
+                                                        {{ subpregunta.pregunta_texto }}
+                                                    </div>
+                                                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                                                        <span class="badge" style="background: #e0e7ff; color: #4338ca;">
+                                                            {{ getTipoTexto(subpregunta.tipo) }}
+                                                        </span>
+                                                        <span v-if="subpregunta.opciones && subpregunta.opciones.length" class="badge" style="background: #f0fdf4; color: #166534;">
+                                                            {{ subpregunta.opciones.length }} opción(es)
+                                                        </span>
+                                                    </div>
+                                                    <div v-if="subpregunta.opciones && subpregunta.opciones.length" style="font-size: 0.85rem; color: #6b7280;">
+                                                        <strong>Opciones:</strong> {{ subpregunta.opciones.join(', ') }}
+                                                    </div>
+                                                </div>
+                                                <div style="display: flex; gap: 0.25rem;">
+                                                    <button type="button" @click.stop="editarSubpreguntaFCR(index, subIndex)" class="btn-icon" title="Editar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button type="button" @click.stop="eliminarSubpreguntaFCR(index, subIndex)" class="btn-icon danger" title="Eliminar">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else style="text-align: center; padding: 1rem; color: #9ca3af; font-style: italic;">
+                                        <i class="fas fa-info-circle"></i> No hay subpreguntas para esta respuesta
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -714,6 +777,103 @@
                 </form>
             </div>
         </div>
+
+        <!-- 🔥 NUEVO: Modal para Agregar/Editar Subpregunta FCR dentro del modal de pregunta -->
+        <div v-if="mostrarModalSubpreguntaFCR" class="modal-overlay" @click="cerrarModalSubpreguntaFCR" style="z-index: 10000;">
+            <div class="modal-container" @click.stop style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3>{{ subpreguntaFCREditando !== null ? 'Editar' : 'Agregar' }} Subpregunta para "{{ preguntaForm.opciones[indiceOpcionFCRActual]?.texto }}"</h3>
+                    <button @click="cerrarModalSubpreguntaFCR" class="btn-close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <form @submit.prevent="guardarSubpreguntaFCR" class="modal-form">
+                    <div class="form-group">
+                        <label>Subpregunta *</label>
+                        <textarea 
+                            v-model="subpreguntaForm.pregunta_texto"
+                            required
+                            placeholder="¿Qué pregunta quieres hacer cuando el usuario seleccione esta opción?"
+                            rows="3"
+                            class="form-textarea"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tipo de Subpregunta *</label>
+                        <select v-model="subpreguntaForm.tipo" required class="form-select" @change="cambiarTipoSubpreguntaFCR">
+                            <option value="opcion_unica">Opción Única</option>
+                            <option value="opcion_unica_texto_libre">Opción Única con Texto Libre</option>
+                            <option value="opcion_multiple">Opción Múltiple</option>
+                            <option value="texto_libre">Texto Libre</option>
+                        </select>
+                    </div>
+
+                    <!-- Opciones para subpreguntas con opciones -->
+                    <div v-if="['opcion_unica', 'opcion_unica_texto_libre', 'opcion_multiple'].includes(subpreguntaForm.tipo)" class="form-group">
+                        <label>Opciones *
+                            <span v-if="subpreguntaForm.tipo === 'opcion_unica_texto_libre'" class="badge-info" style="margin-left: 0.5rem;">
+                                <i class="fas fa-info-circle"></i> La opción "Otro" se agregará automáticamente
+                            </span>
+                        </label>
+                        <div class="opciones-container">
+                            <div v-for="(opcion, index) in subpreguntaForm.opciones" 
+                                 :key="index" 
+                                 class="opcion-input-item"
+                                 :class="{ 
+                                     'opcion-otro': esOpcionOtro(opcion.texto),
+                                     'ultima-opcion': subpreguntaForm.tipo === 'opcion_unica_texto_libre' && index === subpreguntaForm.opciones.length - 1
+                                 }">
+                                <input 
+                                    v-model="opcion.texto"
+                                    type="text"
+                                    :placeholder="`Opción ${index + 1}`"
+                                    required
+                                    class="form-input opcion-input"
+                                    :readonly="subpreguntaForm.tipo === 'opcion_unica_texto_libre' && esOpcionOtro(opcion.texto)"
+                                >
+                                <button 
+                                    type="button" 
+                                    @click="eliminarOpcionSubpregunta(index)"
+                                    class="btn-icon danger"
+                                    :disabled="subpreguntaForm.opciones.length <= 2 || (subpreguntaForm.tipo === 'opcion_unica_texto_libre' && esOpcionOtro(opcion.texto))"
+                                    :title="esOpcionOtro(opcion.texto) ? 'No se puede eliminar esta opción' : 'Eliminar opción'"
+                                >
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <div v-if="esOpcionOtro(opcion.texto)" class="opcion-otro-badge">
+                                    <i class="fas fa-comment"></i> Campo de texto libre
+                                </div>
+                            </div>
+                            <div class="btn-agregar-wrapper">
+                                <button 
+                                    type="button" 
+                                    @click.stop="agregarOpcionSubpreguntaFCR" 
+                                    class="btn btn-outline"
+                                >
+                                    <i class="fas fa-plus"></i> Agregar Opción
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" @click="cerrarModalSubpreguntaFCR" class="btn btn-secondary">
+                            Cancelar
+                        </button>
+                        <button type="submit" :disabled="guardandoSubpregunta" class="btn btn-primary">
+                            <span v-if="guardandoSubpregunta">
+                                <i class="fas fa-spinner fa-spin"></i> Guardando...
+                            </span>
+                            <span v-else>
+                                {{ subpreguntaFCREditando !== null ? 'Actualizar' : 'Agregar' }} Subpregunta
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -750,6 +910,11 @@ export default {
 
             // 🔥 NUEVO: Configuración de rangos para indicadores
             configuracionRangos: [],
+            
+            // 🔥 NUEVO: Estados para subpreguntas FCR en el modal
+            subpreguntaFCREditando: null,
+            indiceOpcionFCRActual: null,
+            mostrarModalSubpreguntaFCR: false,
             nuevoRango: {
                 inicio: 0,
                 fin: 6,
@@ -807,6 +972,11 @@ export default {
         // 🔥 NUEVO: Verificar si es pregunta indicador
         esPreguntaIndicador() {
             return this.preguntaForm.tipo === 'indicador_0_10';
+        },
+        
+        // 🔥 NUEVO: Verificar si es pregunta FCR
+        esPreguntaFCR() {
+            return this.tipoSeleccionado?.codigo === 'fcr';
         },
         
         // 🔥 NUEVO: Contar rangos activos
@@ -1287,10 +1457,11 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             } else if (this.tipoSeleccionado?.codigo === 'fcr') {
                 tipoPreguntaDefault = 'opcion_unica';
                 opcionesDefault = [
-                    { texto: 'Sí' },
-                    { texto: 'No' }
+                    { texto: 'Sí', subpreguntas: [] },
+                    { texto: 'No', subpreguntas: [] }
                 ];
-                nivelDefault = this.nivelesCalificacion.length > 0 ? this.nivelesCalificacion[0].id : '';
+                // 🔥 FCR es genérica, no necesita nivel específico
+                nivelDefault = null;
             }
             
             this.preguntaForm = {
@@ -1340,7 +1511,52 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             // Cargar datos de la pregunta
             let opciones = [];
             if (pregunta.tipo !== 'texto_libre' && pregunta.tipo !== 'indicador_0_10' && pregunta.opciones) {
-                opciones = pregunta.opciones.map(op => ({ texto: op.opcion }));
+                // 🔥 CORRECCIÓN: Para FCR, cargar subpreguntas junto con las opciones
+                if (pregunta.tipo_pregunta === 'fcr') {
+                    console.log('✅ Es pregunta FCR, procesando subpreguntas...');
+                    opciones = pregunta.opciones.map(op => {
+                        console.log('📝 Procesando opción:', op.opcion);
+                        console.log('📝 Subpreguntas de opción:', op.subpreguntas);
+                        
+                        let subpreguntas = [];
+                        if (op.subpreguntas && Array.isArray(op.subpreguntas)) {
+                            console.log('✅ Subpreguntas encontradas, cantidad:', op.subpreguntas.length);
+                            subpreguntas = op.subpreguntas.map(sub => {
+                                let opcionesArray = [];
+                                if (sub.opciones) {
+                                    if (Array.isArray(sub.opciones)) {
+                                        opcionesArray = sub.opciones;
+                                    } else if (typeof sub.opciones === 'string') {
+                                        try {
+                                            opcionesArray = JSON.parse(sub.opciones);
+                                        } catch (e) {
+                                            console.warn('Error parseando opciones de subpregunta:', e);
+                                            opcionesArray = [];
+                                        }
+                                    }
+                                }
+                                return {
+                                    id: sub.id || null,
+                                    pregunta_texto: sub.pregunta_texto || '',
+                                    tipo: sub.tipo || 'opcion_unica',
+                                    opciones: opcionesArray
+                                };
+                            });
+                        }
+                        
+                        const result = {
+                            texto: op.opcion,
+                            id: op.id,
+                            subpreguntas: subpreguntas
+                        };
+                        
+                        console.log('📋 Opción resultante:', result);
+                        return result;
+                    });
+                    console.log('✅ Opciones FCR procesadas:', opciones);
+                } else {
+                    opciones = pregunta.opciones.map(op => ({ texto: op.opcion }));
+                }
             }
             if (opciones.length === 0 && (pregunta.tipo === 'opcion_unica' || pregunta.tipo === 'opcion_multiple')) {
                 opciones = [{ texto: '' }, { texto: '' }];
@@ -1374,6 +1590,9 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 areas_participantes: pregunta.areas_participantes || [],
                 sede_participante: pregunta.sede_participante || null
             };
+            
+            console.log('🔍 Pregunta FCR cargada para edición:', this.preguntaForm);
+            console.log('📋 Opciones con subpreguntas:', this.preguntaForm.opciones);
             
             // 🔥 CORRECCIÓN: Cargar áreas y sedes seleccionadas si es pregunta genérica
             if (esPreguntaGenerica && pregunta.areas_participantes) {
@@ -1580,7 +1799,8 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 alert('Por favor selecciona al menos una sede');
                 return false;
             }
-            if (!this.preguntaForm.niveles_calificacion_id) {
+            // 🔥 CORREGIDO: No validar nivel de calificación para FCR y NPS
+            if (!this.esPreguntaFCR && !(this.tipoSeleccionado?.codigo === 'nps') && !this.preguntaForm.niveles_calificacion_id) {
                 alert('Por favor selecciona un nivel de calificación');
                 return false;
             }
@@ -1631,7 +1851,39 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                         ? this.preguntaForm.opciones.map(op => op.texto).filter(texto => texto.trim())
                         : [],
                     // Solo enviar configuracion_rangos si es pregunta indicador Y tiene rangos activos
-                    configuracion_rangos: this.esPreguntaIndicador && this.totalRangosActivos > 0 ? this.configuracionRangos : []
+                    configuracion_rangos: this.esPreguntaIndicador && this.totalRangosActivos > 0 ? this.configuracionRangos : [],
+                    // 🔥 NUEVO: Enviar subpreguntas FCR si existen
+                    subpreguntas_fcr: this.esPreguntaFCR ? this.preguntaForm.opciones.map((opcion, index) => {
+                        const subpreguntas = (opcion.subpreguntas || []).map(sub => {
+                            let opcionesArray = [];
+                            
+                            // Procesar opciones correctamente
+                            if (sub.opciones) {
+                                if (Array.isArray(sub.opciones)) {
+                                    opcionesArray = sub.opciones;
+                                } else if (typeof sub.opciones === 'string') {
+                                    try {
+                                        opcionesArray = JSON.parse(sub.opciones);
+                                    } catch (e) {
+                                        console.warn('Error parseando opciones:', e);
+                                        opcionesArray = [];
+                                    }
+                                }
+                            }
+                            
+                            return {
+                                pregunta_texto: sub.pregunta_texto || '',
+                                tipo: sub.tipo || 'opcion_unica',
+                                opciones: opcionesArray
+                            };
+                        });
+                        console.log(`📋 Opción ${index} (${opcion.texto}): ${subpreguntas.length} subpreguntas`);
+                        return {
+                            indice: index,
+                            texto_opcion: opcion.texto,
+                            subpreguntas: subpreguntas
+                        };
+                    }) : []
                 };
                 
                 console.log('📤 Datos a enviar:', JSON.stringify(datos, null, 2));
@@ -1920,9 +2172,76 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             }
         },
 
+        // 🔥 NUEVO: Cambiar tipo de subpregunta FCR (con manejo de "Otro")
+        cambiarTipoSubpreguntaFCR() {
+            if (!['opcion_unica', 'opcion_unica_texto_libre', 'opcion_multiple'].includes(this.subpreguntaForm.tipo)) {
+                this.subpreguntaForm.opciones = [];
+            } else {
+                // Si cambia a opcion_unica_texto_libre, asegurar que tenga opción "Otro"
+                if (this.subpreguntaForm.tipo === 'opcion_unica_texto_libre') {
+                    const tieneOtro = this.subpreguntaForm.opciones.some(op => this.esOpcionOtro(op.texto));
+                    if (!tieneOtro) {
+                        // Si no tiene opciones o solo tiene una opción vacía, inicializar con 2 opciones y luego agregar "Otro"
+                        if (this.subpreguntaForm.opciones.length === 0 || this.subpreguntaForm.opciones.every(op => !op.texto.trim())) {
+                            this.subpreguntaForm.opciones = [
+                                { texto: '' },
+                                { texto: '' }
+                            ];
+                        }
+                        // Agregar "Otro" al final si no está
+                        this.subpreguntaForm.opciones.push({ texto: 'Otro - especifique' });
+                    }
+                } else {
+                    // Para otros tipos, asegurar al menos 2 opciones
+                    if (this.subpreguntaForm.opciones.length === 0) {
+                        this.subpreguntaForm.opciones = [
+                            { texto: '' },
+                            { texto: '' }
+                        ];
+                    }
+                    // Si tenía "Otro" y cambió a otro tipo, eliminar "Otro"
+                    this.subpreguntaForm.opciones = this.subpreguntaForm.opciones.filter(op => !this.esOpcionOtro(op.texto));
+                    if (this.subpreguntaForm.opciones.length < 2) {
+                        while (this.subpreguntaForm.opciones.length < 2) {
+                            this.subpreguntaForm.opciones.push({ texto: '' });
+                        }
+                    }
+                }
+            }
+        },
+
         // 🔥 NUEVO: Agregar opción a subpregunta
         agregarOpcionSubpregunta() {
             this.subpreguntaForm.opciones.push({ texto: '' });
+        },
+
+        // 🔥 NUEVO: Agregar opción a subpregunta FCR (maneja "Otro" al final)
+        agregarOpcionSubpreguntaFCR() {
+            console.log('➕ Agregando opción a subpregunta FCR');
+            console.log('📋 Tipo actual:', this.subpreguntaForm.tipo);
+            console.log('📋 Opciones actuales:', this.subpreguntaForm.opciones);
+            
+            // Si es opcion_unica_texto_libre y ya tiene "Otro", agregar antes de "Otro"
+            if (this.subpreguntaForm.tipo === 'opcion_unica_texto_libre') {
+                const indiceOtro = this.subpreguntaForm.opciones.findIndex(op => this.esOpcionOtro(op.texto));
+                console.log('🔍 Índice de "Otro":', indiceOtro);
+                
+                if (indiceOtro !== -1) {
+                    // Insertar antes de "Otro"
+                    this.subpreguntaForm.opciones.splice(indiceOtro, 0, { texto: '' });
+                    console.log('✅ Opción agregada antes de "Otro"');
+                } else {
+                    // Si no tiene "Otro", agregar normalmente
+                    this.subpreguntaForm.opciones.push({ texto: '' });
+                    console.log('✅ Opción agregada al final');
+                }
+            } else {
+                // Para otros tipos, agregar normalmente
+                this.subpreguntaForm.opciones.push({ texto: '' });
+                console.log('✅ Opción agregada normalmente');
+            }
+            
+            console.log('📋 Opciones después de agregar:', this.subpreguntaForm.opciones);
         },
 
         // 🔥 NUEVO: Eliminar opción de subpregunta
@@ -1930,6 +2249,172 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             if (this.subpreguntaForm.opciones.length > 2) {
                 this.subpreguntaForm.opciones.splice(index, 1);
             }
+        },
+
+        // 🔥 NUEVO: Métodos para subpreguntas FCR dentro del modal de creación
+        agregarSubpreguntaFCR(indiceOpcion) {
+            this.indiceOpcionFCRActual = indiceOpcion;
+            this.subpreguntaFCREditando = null;
+            this.subpreguntaForm = {
+                id: null,
+                pregunta_texto: '',
+                tipo: 'opcion_unica',
+                opciones: [
+                    { texto: '' },
+                    { texto: '' }
+                ]
+            };
+            this.mostrarModalSubpreguntaFCR = true;
+        },
+
+        editarSubpreguntaFCR(indiceOpcion, indiceSubpregunta) {
+            console.log('🔧 Iniciando edición de subpregunta - Opción:', indiceOpcion, 'Subpregunta:', indiceSubpregunta);
+            
+            // Validar que los índices sean válidos
+            if (!this.preguntaForm.opciones || !this.preguntaForm.opciones[indiceOpcion]) {
+                console.error('❌ Opción no encontrada:', indiceOpcion);
+                this.mostrarMensaje('Error: No se encontró la opción', 'error');
+                return;
+            }
+            
+            const opcion = this.preguntaForm.opciones[indiceOpcion];
+            if (!opcion.subpreguntas || !opcion.subpreguntas[indiceSubpregunta]) {
+                console.error('❌ Subpregunta no encontrada:', indiceSubpregunta);
+                this.mostrarMensaje('Error: No se encontró la subpregunta', 'error');
+                return;
+            }
+            
+            this.indiceOpcionFCRActual = indiceOpcion;
+            const subpregunta = opcion.subpreguntas[indiceSubpregunta];
+            this.subpreguntaFCREditando = { indiceOpcion, indiceSubpregunta };
+            
+            console.log('🔍 Editando subpregunta:', subpregunta);
+            
+            let opcionesArray = [];
+            if (subpregunta.opciones) {
+                if (Array.isArray(subpregunta.opciones)) {
+                    opcionesArray = subpregunta.opciones.map(op => {
+                        if (typeof op === 'string') {
+                            return { texto: op };
+                        } else if (op && typeof op === 'object' && op.texto) {
+                            return { texto: op.texto };
+                        }
+                        return { texto: String(op) };
+                    });
+                } else if (typeof subpregunta.opciones === 'string') {
+                    try {
+                        const parsed = JSON.parse(subpregunta.opciones);
+                        opcionesArray = Array.isArray(parsed) ? parsed.map(op => {
+                            if (typeof op === 'string') {
+                                return { texto: op };
+                            }
+                            return { texto: String(op) };
+                        }) : [];
+                    } catch (e) {
+                        console.warn('Error parseando opciones:', e);
+                        opcionesArray = [];
+                    }
+                }
+            }
+            
+            // Asegurar al menos 2 opciones si es necesario
+            if (['opcion_unica', 'opcion_multiple', 'opcion_unica_texto_libre'].includes(subpregunta.tipo)) {
+                if (opcionesArray.length === 0) {
+                    opcionesArray = [{ texto: '' }, { texto: '' }];
+                }
+                
+                // Si es opcion_unica_texto_libre, asegurar que tenga "Otro"
+                if (subpregunta.tipo === 'opcion_unica_texto_libre') {
+                    const tieneOtro = opcionesArray.some(op => this.esOpcionOtro(op.texto));
+                    if (!tieneOtro) {
+                        opcionesArray.push({ texto: 'Otro - especifique' });
+                    }
+                }
+            }
+
+            this.subpreguntaForm = {
+                id: subpregunta.id || null,
+                pregunta_texto: subpregunta.pregunta_texto || '',
+                tipo: subpregunta.tipo || 'opcion_unica',
+                opciones: opcionesArray
+            };
+            
+            console.log('✅ Formulario de subpregunta preparado:', this.subpreguntaForm);
+            console.log('✅ Estado subpreguntaFCREditando:', this.subpreguntaFCREditando);
+            this.mostrarModalSubpreguntaFCR = true;
+        },
+
+        eliminarSubpreguntaFCR(indiceOpcion, indiceSubpregunta) {
+            if (confirm('¿Estás seguro de eliminar esta subpregunta?')) {
+                this.preguntaForm.opciones[indiceOpcion].subpreguntas.splice(indiceSubpregunta, 1);
+                this.mostrarMensaje('Subpregunta eliminada', 'success');
+            }
+        },
+
+        guardarSubpreguntaFCR() {
+            if (!this.subpreguntaForm.pregunta_texto.trim()) {
+                this.mostrarMensaje('La subpregunta es requerida', 'error');
+                return;
+            }
+
+            // Procesar opciones
+            let opcionesFinales = [];
+            if (['opcion_unica', 'opcion_multiple', 'opcion_unica_texto_libre'].includes(this.subpreguntaForm.tipo)) {
+                opcionesFinales = this.subpreguntaForm.opciones.map(op => op.texto).filter(texto => texto.trim());
+                
+                // Para opcion_unica_texto_libre, asegurar que tenga "Otro"
+                if (this.subpreguntaForm.tipo === 'opcion_unica_texto_libre') {
+                    const tieneOtro = opcionesFinales.some(op => this.esOpcionOtro(op));
+                    if (!tieneOtro) {
+                        opcionesFinales.push('Otro - especifique');
+                    }
+                }
+            }
+
+            const subpreguntaData = {
+                id: this.subpreguntaForm.id || null,
+                pregunta_texto: this.subpreguntaForm.pregunta_texto.trim(),
+                tipo: this.subpreguntaForm.tipo,
+                opciones: opcionesFinales
+            };
+
+            console.log('💾 Guardando subpregunta:', subpreguntaData);
+            console.log('📝 Estado subpreguntaFCREditando:', this.subpreguntaFCREditando);
+
+            if (this.subpreguntaFCREditando !== null) {
+                // Editar subpregunta existente
+                const { indiceOpcion, indiceSubpregunta } = this.subpreguntaFCREditando;
+                console.log('✏️ Actualizando subpregunta en posición:', { indiceOpcion, indiceSubpregunta });
+                console.log('📋 Subpregunta anterior:', this.preguntaForm.opciones[indiceOpcion].subpreguntas[indiceSubpregunta]);
+                
+                // Preservar el ID si existía
+                if (this.preguntaForm.opciones[indiceOpcion].subpreguntas[indiceSubpregunta].id) {
+                    subpreguntaData.id = this.preguntaForm.opciones[indiceOpcion].subpreguntas[indiceSubpregunta].id;
+                }
+                
+                this.preguntaForm.opciones[indiceOpcion].subpreguntas[indiceSubpregunta] = subpreguntaData;
+                console.log('✅ Subpregunta actualizada:', this.preguntaForm.opciones[indiceOpcion].subpreguntas[indiceSubpregunta]);
+                this.mostrarMensaje('Subpregunta actualizada', 'success');
+            } else {
+                // Agregar nueva subpregunta
+                console.log('➕ Agregando nueva subpregunta');
+                this.preguntaForm.opciones[this.indiceOpcionFCRActual].subpreguntas.push(subpreguntaData);
+                this.mostrarMensaje('Subpregunta agregada', 'success');
+            }
+
+            this.cerrarModalSubpreguntaFCR();
+        },
+
+        cerrarModalSubpreguntaFCR() {
+            this.mostrarModalSubpreguntaFCR = false;
+            this.subpreguntaFCREditando = null;
+            this.indiceOpcionFCRActual = null;
+            this.subpreguntaForm = {
+                id: null,
+                pregunta_texto: '',
+                tipo: 'opcion_unica',
+                opciones: [{ texto: '' }, { texto: '' }]
+            };
         },
 
         // 🔥 NUEVO: Resetear configuración de rangos

@@ -274,20 +274,38 @@ if (isset($validated['respuestas_rangos']) && is_array($validated['respuestas_ra
         }
 
         // 3. Procesar respuestas de subpreguntas
-        if (isset($validated['respuestas_subpreguntas'])) {
+        if (isset($validated['respuestas_subpreguntas']) && !empty($validated['respuestas_subpreguntas'])) {
             Log::info('📥 Procesando respuestas de subpreguntas:', $validated['respuestas_subpreguntas']);
             
             foreach ($validated['respuestas_subpreguntas'] as $respuestaSubpregunta) {
-                \App\Models\RespuestaSubpregunta::create([
+                // Preparar datos solo con campos que tienen valores
+                $dataSubpregunta = [
                     'calificacion_id' => $calificacion->id,
-                    'subpregunta_id' => $respuestaSubpregunta['subpregunta_id'],
-                    'opcion_seleccionada' => $respuestaSubpregunta['opcion_seleccionada'],
-                    'opciones_seleccionadas' => $respuestaSubpregunta['opciones_seleccionadas'] 
-                        ? json_encode($respuestaSubpregunta['opciones_seleccionadas'])
-                        : null,
-                    'texto_respuesta' => $respuestaSubpregunta['texto_respuesta'],
-                    'valor_indicador' => $respuestaSubpregunta['valor_indicador']
-                ]);
+                    'subpregunta_id' => $respuestaSubpregunta['subpregunta_id']
+                ];
+                
+                // Agregar solo los campos que tienen valores
+                if (isset($respuestaSubpregunta['opcion_seleccionada']) && $respuestaSubpregunta['opcion_seleccionada'] !== null) {
+                    $dataSubpregunta['opcion_seleccionada'] = $respuestaSubpregunta['opcion_seleccionada'];
+                }
+                
+                if (isset($respuestaSubpregunta['opciones_seleccionadas']) && $respuestaSubpregunta['opciones_seleccionadas'] !== null) {
+                    $dataSubpregunta['opciones_seleccionadas'] = is_string($respuestaSubpregunta['opciones_seleccionadas']) 
+                        ? $respuestaSubpregunta['opciones_seleccionadas'] 
+                        : json_encode($respuestaSubpregunta['opciones_seleccionadas']);
+                }
+                
+                if (isset($respuestaSubpregunta['texto_respuesta']) && $respuestaSubpregunta['texto_respuesta'] !== null && $respuestaSubpregunta['texto_respuesta'] !== '') {
+                    $dataSubpregunta['texto_respuesta'] = $respuestaSubpregunta['texto_respuesta'];
+                }
+                
+                if (isset($respuestaSubpregunta['valor_indicador']) && $respuestaSubpregunta['valor_indicador'] !== null) {
+                    $dataSubpregunta['valor_indicador'] = $respuestaSubpregunta['valor_indicador'];
+                }
+                
+                Log::info('💾 Guardando respuesta de subpregunta:', $dataSubpregunta);
+                \App\Models\RespuestaSubpregunta::create($dataSubpregunta);
+                Log::info('✅ Respuesta de subpregunta guardada exitosamente');
             }
         }
 

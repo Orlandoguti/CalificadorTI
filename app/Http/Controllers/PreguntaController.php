@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Pregunta;
 use App\Models\OpcionPregunta;
+use App\Models\Subpregunta;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Models\Calificacion;
-use App\Models\Subpregunta;
 use App\Models\RespuestaSubpregunta;
 
 class PreguntaController extends Controller
@@ -22,7 +22,8 @@ class PreguntaController extends Controller
         $areaId = $request->get('area_id');
         $nivelId = $request->get('nivel_id');
         
-        $query = Pregunta::with(['opciones', 'nivelCalificacion', 'subpreguntasRango'])
+        // 🔥 CORRECCIÓN: Cargar opciones con sus subpreguntas para FCR
+        $query = Pregunta::with(['opciones.subpreguntas', 'nivelCalificacion', 'subpreguntasRango'])
             ->where('is_active', true);
 
         // ✅ FILTRAR POR NIVEL DE CALIFICACIÓN (siempre necesario)
@@ -129,6 +130,37 @@ class PreguntaController extends Controller
             } else {
                 $pregunta->subpreguntas_rango = [];
             }
+            
+            // 🔥 CORRECCIÓN: Procesar subpreguntas de opciones para FCR
+            if ($pregunta->tipo_pregunta === 'fcr' && $pregunta->opciones) {
+                foreach ($pregunta->opciones as $opcion) {
+                    if ($opcion->subpreguntas) {
+                        // Las subpreguntas ya vienen cargadas desde el eager loading
+                        // Solo necesitamos procesar las opciones JSON
+                        $opcion->subpreguntas = $opcion->subpreguntas->map(function($sub) {
+                            $opcionesArray = [];
+                            if ($sub->opciones) {
+                                if (is_string($sub->opciones)) {
+                                    try {
+                                        $opcionesArray = json_decode($sub->opciones, true);
+                                    } catch (\Exception $e) {
+                                        Log::warning('Error parseando opciones de subpregunta: ' . $e->getMessage());
+                                        $opcionesArray = [];
+                                    }
+                                } else {
+                                    $opcionesArray = $sub->opciones;
+                                }
+                            }
+                            return [
+                                'id' => $sub->id,
+                                'pregunta_texto' => $sub->pregunta_texto,
+                                'tipo' => $sub->tipo,
+                                'opciones' => $opcionesArray
+                            ];
+                        })->toArray();
+                    }
+                }
+            }
         }
 
         Log::info("📊 Preguntas encontradas: " . $preguntas->count() . 
@@ -152,7 +184,7 @@ public function store(Request $request)
 
         $validated = $request->validate([
             'pregunta' => 'required|string|max:500',
-            'niveles_calificacion_id' => 'required|exists:niveles_calificacion,id',
+            'niveles_calificacion_id' => 'nullable|exists:niveles_calificacion,id',
             'tipo' => 'required|in:opcion_unica,opcion_multiple,texto_libre,indicador_0_10,opcion_unica_texto_libre',
             'tipo_pregunta' => 'nullable|in:csat,nps,fcr',
             'is_active' => 'boolean',
@@ -161,28 +193,36 @@ public function store(Request $request)
             // Arrays de áreas y sedes para tabla pivote
             'areas_id' => 'sometimes|array',
             'sedes_id' => 'sometimes|array',
+            // 🔥 NUEVO: Subpreguntas FCR
+            'subpreguntas_fcr' => 'sometimes|array',
         ]);
 
         // Crear la pregunta principal (sin area_id ni sede_id - se usarán en tabla pivote)
+        // 🔥 CORREGIDO: niveles_calificacion_id puede ser null para preguntas genéricas (FCR/NPS)
         $pregunta = Pregunta::create([
             'pregunta' => $validated['pregunta'],
-            'niveles_calificacion_id' => $validated['niveles_calificacion_id'],
+            'niveles_calificacion_id' => $validated['niveles_calificacion_id'] ?? null,
             'tipo' => $validated['tipo'],
             'tipo_pregunta' => $validated['tipo_pregunta'] ?? null,
             'is_active' => $validated['is_active'] ?? true
         ]);
 
+        // 🔥 NUEVO: Preparar mapa de opciones para subpreguntas FCR
+        $opcionesMap = [];
+        $opcionesCreadas = [];
+        
         // Crear opciones si es necesario (para tipos que las requieren)
         if (isset($validated['opciones']) && is_array($validated['opciones'])) {
             foreach ($validated['opciones'] as $index => $opcionTexto) {
                 $opcionTexto = trim($opcionTexto);
                 if (!empty($opcionTexto)) {
-                    OpcionPregunta::create([
+                    $opcion = OpcionPregunta::create([
                         'pregunta_id' => $pregunta->id,
                         'opcion' => $opcionTexto,
                         'tiene_subpreguntas' => false,
                         'orden' => $index + 1
                     ]);
+                    $opcionesCreadas[$index] = $opcion;
                 }
             }
             
@@ -204,6 +244,41 @@ public function store(Request $request)
                         'orden' => $pregunta->opciones()->count() + 1
                     ]);
                     Log::info("✅ Opción 'Otro - especifique' agregada automáticamente a pregunta: " . $pregunta->id);
+                }
+            }
+        }
+
+        // 🔥 NUEVO: Crear subpreguntas FCR si existen
+        if (isset($validated['subpreguntas_fcr']) && is_array($validated['subpreguntas_fcr'])) {
+            Log::info('🔥 Procesando subpreguntas FCR:', $validated['subpreguntas_fcr']);
+            
+            foreach ($validated['subpreguntas_fcr'] as $opcionData) {
+                $indice = $opcionData['indice'] ?? null;
+                $subpreguntas = $opcionData['subpreguntas'] ?? [];
+                
+                if ($indice !== null && isset($opcionesCreadas[$indice]) && !empty($subpreguntas)) {
+                    $opcion = $opcionesCreadas[$indice];
+                    $tieneSubpreguntas = false;
+                    
+                    foreach ($subpreguntas as $subpreguntaData) {
+                        $tieneSubpreguntas = true;
+                        Subpregunta::create([
+                            'opcion_pregunta_id' => $opcion->id,
+                            'pregunta_texto' => $subpreguntaData['pregunta_texto'],
+                            'tipo' => $subpreguntaData['tipo'],
+                            'opciones' => !empty($subpreguntaData['opciones']) 
+                                ? json_encode($subpreguntaData['opciones']) 
+                                : null,
+                            'is_active' => true
+                        ]);
+                        
+                        Log::info("✅ Subpregunta creada para opción: {$opcion->opcion}");
+                    }
+                    
+                    // Actualizar estado de la opción
+                    if ($tieneSubpreguntas) {
+                        $opcion->update(['tiene_subpreguntas' => true]);
+                    }
                 }
             }
         }
@@ -413,7 +488,8 @@ private function crearPreguntasRango($preguntaIndicadorId, $configuracionRangos)
             'tipo_pregunta' => 'nullable|in:csat,nps,fcr', // 🔥 Agregar tipo_pregunta
             'is_active' => 'boolean',
             'opciones' => 'sometimes|array',
-            'configuracion_rangos' => 'sometimes|array' // 🔥 NUEVO
+            'configuracion_rangos' => 'sometimes|array', // 🔥 NUEVO
+            'subpreguntas_fcr' => 'sometimes|array' // 🔥 NUEVO: Subpreguntas FCR
         ]);
 
         // 🔥 Preparar datos para actualizar (excluir campos null para preguntas genéricas)
@@ -441,6 +517,11 @@ private function crearPreguntasRango($preguntaIndicadorId, $configuracionRangos)
         // Manejar opciones normales
         if (isset($validated['opciones']) && is_array($validated['opciones'])) {
             $this->actualizarOpcionesPregunta($pregunta, $validated['opciones']);
+        }
+
+        // 🔥 NUEVO: Manejar subpreguntas FCR
+        if (isset($validated['subpreguntas_fcr']) && is_array($validated['subpreguntas_fcr'])) {
+            $this->actualizarSubpreguntasFCR($pregunta, $validated['subpreguntas_fcr']);
         }
 
         // 🔥 NUEVO: Manejar preguntas de rango si es un indicador
@@ -799,6 +880,45 @@ public function eliminarForzado(Pregunta $pregunta)
             'success' => false,
             'error' => 'Error al eliminar la pregunta: ' . $e->getMessage()
         ], 500);
+    }
+}
+
+/**
+ * 🔥 NUEVO: Actualizar subpreguntas FCR
+ */
+private function actualizarSubpreguntasFCR(Pregunta $pregunta, array $subpreguntasFCR)
+{
+    // Recargar las opciones para tener los IDs actualizados
+    $pregunta->load('opciones');
+    
+    foreach ($subpreguntasFCR as $opcionData) {
+        $indice = $opcionData['indice'] ?? null;
+        $subpreguntas = $opcionData['subpreguntas'] ?? [];
+        
+        if ($indice !== null && isset($pregunta->opciones[$indice])) {
+            $opcion = $pregunta->opciones[$indice];
+            
+            // Eliminar subpreguntas existentes
+            Subpregunta::where('opcion_pregunta_id', $opcion->id)->delete();
+            
+            // Crear nuevas subpreguntas
+            if (!empty($subpreguntas)) {
+                foreach ($subpreguntas as $subpreguntaData) {
+                    Subpregunta::create([
+                        'opcion_pregunta_id' => $opcion->id,
+                        'pregunta_texto' => $subpreguntaData['pregunta_texto'],
+                        'tipo' => $subpreguntaData['tipo'],
+                        'opciones' => !empty($subpreguntaData['opciones']) 
+                            ? json_encode($subpreguntaData['opciones']) 
+                            : null,
+                        'is_active' => true
+                    ]);
+                }
+                $opcion->update(['tiene_subpreguntas' => true]);
+            } else {
+                $opcion->update(['tiene_subpreguntas' => false]);
+            }
+        }
     }
 }
 }

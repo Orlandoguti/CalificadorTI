@@ -72,22 +72,30 @@
 
                     <!-- 🔥 NUEVO: Para áreas con solo FCR, mostrar manitas con la pregunta FCR -->
                     <div v-if="!areaSeleccionada.permite_csat && !areaSeleccionada.permite_nps && areaSeleccionada.permite_fcr" class="indicador-fcr-wrapper">
-                        <h2 style="color: #1F2937; text-align: center; margin-bottom: 2rem; font-size: 1.8rem;">
-                            ¿Se resolvió completamente su consulta o problema durante esta primera interacción?
-                        </h2>
-                        <div class="fcr-options">
-                            <div class="fcr-option" @click="iniciarConFCR(true)">
-                                <div class="fcr-icon bien">
-                                    <i class="fas fa-thumbs-up"></i>
+                        <div v-if="cargandoPreguntaFCR" style="text-align: center; padding: 2rem;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #666;"></i>
+                            <p>Cargando pregunta...</p>
+                        </div>
+                        <div v-else-if="preguntaFCRPrincipal">
+                            <h2 style="color: #1F2937; text-align: center; margin-bottom: 2rem; font-size: 1.8rem;">
+                                {{ preguntaFCRPrincipal.pregunta }}
+                            </h2>
+                            <div class="fcr-options">
+                                <div v-for="opcion in preguntaFCRPrincipal.opciones" 
+                                     :key="opcion.id" 
+                                     class="fcr-option" 
+                                     @click="iniciarConFCR(opcion.opcion === 'Sí', opcion)">
+                                    <div class="fcr-icon" :class="opcion.opcion === 'Sí' ? 'bien' : 'mal'">
+                                        <i :class="opcion.opcion === 'Sí' ? 'fas fa-thumbs-up' : 'fas fa-thumbs-down'"></i>
+                                    </div>
+                                    <span>{{ opcion.opcion }}</span>
                                 </div>
-                                <span>Sí</span>
                             </div>
-                            <div class="fcr-option" @click="iniciarConFCR(false)">
-                                <div class="fcr-icon mal">
-                                    <i class="fas fa-thumbs-down"></i>
-                                </div>
-                                <span>No</span>
-                            </div>
+                        </div>
+                        <div v-else style="text-align: center; padding: 2rem; color: #ef4444;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                            <p><strong>No hay pregunta FCR configurada</strong></p>
+                            <p style="font-size: 0.9rem; margin-top: 0.5rem;">Por favor, crea una pregunta FCR desde el panel de administración.</p>
                         </div>
                     </div>
                 </div>
@@ -296,7 +304,9 @@
             </div>
             
             <!-- Texto libre para opción única con texto libre -->
-            <div v-if="subpreguntaActual.tipo === 'opcion_unica_texto_libre' && respuestasSubpreguntas[subpreguntaActual.id]?.opcionSeleccionada === 'Otro especificar'" 
+            <div v-if="subpreguntaActual.tipo === 'opcion_unica_texto_libre' && 
+                       respuestasSubpreguntas[subpreguntaActual.id]?.opcionSeleccionada && 
+                       (respuestasSubpreguntas[subpreguntaActual.id].opcionSeleccionada.toLowerCase().includes('otro') || respuestasSubpreguntas[subpreguntaActual.id].opcionSeleccionada.toLowerCase().includes('especifique'))" 
                  class="texto-libre-subpregunta mt-3">
                 <textarea 
                     v-model="respuestasSubpreguntas[subpreguntaActual.id].texto"
@@ -430,6 +440,8 @@ export default {
             cargandoDatos: true,
             todasLasPreguntas: [], // 🔥 NUEVO: Para almacenar todas las preguntas
             preguntaNPS: null, // 🔥 NUEVO: Pregunta NPS para mostrar en el título inicial
+            preguntaFCRPrincipal: null, // 🔥 NUEVO: Pregunta FCR principal desde BD
+            cargandoPreguntaFCR: false, // 🔥 NUEVO: Estado de carga de pregunta FCR
             
             // Niveles de calificación
            nivelesCalificacion: [
@@ -712,6 +724,8 @@ respuestaUnica: {
                             // Debug específico para FCR
                             if (!this.areaSeleccionada.permite_csat && !this.areaSeleccionada.permite_nps && this.areaSeleccionada.permite_fcr) {
                                 console.log('🔧 MODO FCR ACTIVADO');
+                                // Cargar pregunta FCR desde BD
+                                await this.cargarPreguntaFCR();
                             }
                         } else {
                             console.error('❌ Error al cargar área desde API:', response.status);
@@ -1233,10 +1247,16 @@ async guardarCalificacionCompleta() {
             body: JSON.stringify(calificacionData)
         });
 
-        // ... resto del método igual ...
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ Calificación guardada exitosamente:', result);
+        
     } catch (error) {
         console.error('❌ Error guardando calificación:', error);
-        throw error;
+        alert('Error al guardar la calificación: ' + error.message);
     }
 },
 
@@ -1249,22 +1269,35 @@ extraerRespuestasSubpreguntas() {
     // 🔥 NUEVO: Si estamos en modo subpreguntas (como FCR directo), extraer de respuestasSubpreguntas
     if (this.modoSubpreguntas && this.subpreguntasActuales.length > 0) {
         console.log('📝 Extrayendo respuestas de subpreguntas FCR...');
+        console.log('📋 respuestasSubpreguntas:', this.respuestasSubpreguntas);
+        console.log('📋 subpreguntasActuales:', this.subpreguntasActuales);
         
         Object.keys(this.respuestasSubpreguntas).forEach(subpreguntaId => {
             const respuesta = this.respuestasSubpreguntas[subpreguntaId];
+            const subpregunta = this.subpreguntasActuales.find(s => s.id == subpreguntaId);
             
-            if (respuesta && respuesta.opcionSeleccionada !== null) {
-                respuestas.push({
-                    subpregunta_id: parseInt(subpreguntaId),
-                    opcion_seleccionada: respuesta.opcionSeleccionada || null,
-                    opciones_seleccionadas: null, // No se usa en opción única
-                    texto_respuesta: respuesta.texto || null, // Para "Otro especificar"
-                    valor_indicador: null
-                });
-            }
+            console.log('🔍 Procesando respuesta de subpregunta:', subpreguntaId, respuesta, subpregunta);
+            
+    if (respuesta && (respuesta.opcionSeleccionada !== null || respuesta.texto || respuesta.valor !== null || respuesta.opcionesSeleccionadas)) {
+        const respuestaData = {
+            subpregunta_id: parseInt(subpreguntaId),
+            texto_respuesta: respuesta.texto || null,
+            opciones_seleccionadas: respuesta.opcionesSeleccionadas 
+                ? JSON.stringify(respuesta.opcionesSeleccionadas) 
+                : null,
+            valor_indicador: respuesta.valor || null
+        };
+        
+        // Para opción única, guardar el texto de la opción seleccionada
+        if (respuesta.opcionSeleccionada !== null && respuesta.opcionSeleccionada !== undefined) {
+            respuestaData.opcion_seleccionada = respuesta.opcionSeleccionada;
+        }
+        
+        respuestas.push(respuestaData);
+    }
         });
         
-        console.log('📝 Respuestas FCR extraídas:', respuestas);
+        console.log('✅ Respuestas FCR extraídas:', respuestas);
         return respuestas;
     }
     
@@ -1770,8 +1803,10 @@ validarSubpreguntaActual() {
         case 'opcion_unica':
         case 'opcion_unica_texto_libre':
             if (respuesta.opcionSeleccionada === null) return false;
-            // Si es texto libre y seleccionó "Otro especificar", validar que haya texto
-            if (subpregunta.tipo === 'opcion_unica_texto_libre' && respuesta.opcionSeleccionada === 'Otro especificar') {
+            // Si es texto libre y seleccionó "Otro", validar que haya texto
+            if (subpregunta.tipo === 'opcion_unica_texto_libre' && 
+                respuesta.opcionSeleccionada && 
+                (respuesta.opcionSeleccionada.toLowerCase().includes('otro') || respuesta.opcionSeleccionada.toLowerCase().includes('especifique'))) {
                 return respuesta.texto && respuesta.texto.trim() !== '';
             }
             return true;
@@ -2348,8 +2383,9 @@ async iniciarConNPS() {
     }
 },
 
-async iniciarConFCR(resuelto) {
+async iniciarConFCR(resuelto, opcion) {
     this.respuestaFCR = resuelto;
+    const opcionSeleccionada = opcion;
     
     if (resuelto) {
         // ✅ Si selecciona "Sí" → Finalizar directo y mostrar agradecimiento
@@ -2365,14 +2401,19 @@ async iniciarConFCR(resuelto) {
             }
             
             // Guardar calificación con respuesta FCR positiva
+            const respuestas = {};
+            if (this.preguntaFCRPrincipal && opcionSeleccionada) {
+                respuestas[this.preguntaFCRPrincipal.id] = {
+                    opcion_seleccionada_id: opcionSeleccionada.id,
+                    texto_libre: ''
+                };
+            }
+            
             const calificacionData = {
                 area_id: this.areaSeleccionada.id,
-                nivel_calificacion_id: 1,
+                nivel_calificacion_id: this.preguntaFCRPrincipal?.niveles_calificacion_id || 1,
                 sede_id: sedeId,
-                respuestas: {
-                    'respuesta_fcr': true,
-                    'respuesta_si': true
-                },
+                respuestas: respuestas,
                 respuestas_subpreguntas: {},
                 respuestas_rangos: {}
             };
@@ -2389,6 +2430,7 @@ async iniciarConFCR(resuelto) {
             // Mostrar agradecimiento
             this.mostrarCuestionario = false;
             this.mostrarAgradecimiento = true;
+            this.iniciarTemporizadorCierre();
             
         } catch (error) {
             console.error('Error:', error);
@@ -2470,18 +2512,18 @@ async cargarSubpreguntasFCR() {
                         
                         this.subpreguntasActuales = subpreguntas;
                         console.log('✅ Subpreguntas cargadas:', this.subpreguntasActuales.length);
+                        console.log('📋 Subpreguntas completas:', subpreguntas);
                         
                         // Iniciar modo subpreguntas
                         this.modoSubpreguntas = true;
                         this.subpreguntaIndex = 0;
+                        this.inicializarRespuestasSubpreguntas();
                         this.mostrarCuestionario = true;
                         this.cargando = false;
-                        
-                        // Guardar que ya respondió "No" a la pregunta principal
-                        this.respuestas[preguntaFCR.id] = { 
-                            opcion_seleccionada_id: opcionNo.id,
-                            texto_libre: ''
-                        };
+                    } else {
+                        console.error('❌ No se pudieron cargar las subpreguntas');
+                        alert('Error al cargar las preguntas del motivo');
+                        this.cargando = false;
                     }
                 } else {
                     console.error('La opción "No" no tiene subpreguntas configuradas');
@@ -2495,6 +2537,45 @@ async cargarSubpreguntasFCR() {
         alert('Error al cargar las preguntas del motivo');
     } finally {
         this.cargando = false;
+    }
+},
+
+// 🔥 NUEVO: Cargar pregunta FCR desde BD
+async cargarPreguntaFCR() {
+    this.cargandoPreguntaFCR = true;
+    try {
+        const sedeGuardada = localStorage.getItem('sede_seleccionada');
+        const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
+        let sedeId = 1;
+        if (sedeResponse.ok) {
+            const sedeData = await sedeResponse.json();
+            sedeId = sedeData.id;
+        }
+        
+        // Buscar pregunta FCR para esta área
+        const response = await fetch(`/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=todas&sede_id=${sedeId}`);
+        
+        if (response.ok) {
+            const preguntas = await response.json();
+            // Buscar pregunta con tipo_pregunta = 'fcr'
+            const preguntaFCR = preguntas.find(p => p.tipo_pregunta === 'fcr' && p.is_active);
+            
+            if (preguntaFCR) {
+                this.preguntaFCRPrincipal = preguntaFCR;
+                console.log('✅ Pregunta FCR cargada:', preguntaFCR);
+            } else {
+                console.warn('⚠️ No se encontró pregunta FCR configurada');
+                this.preguntaFCRPrincipal = null;
+            }
+        } else {
+            console.error('Error cargando preguntas FCR');
+            this.preguntaFCRPrincipal = null;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        this.preguntaFCRPrincipal = null;
+    } finally {
+        this.cargandoPreguntaFCR = false;
     }
 },
     }
