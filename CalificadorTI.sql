@@ -164,7 +164,9 @@ CREATE TABLE IF NOT EXISTS `calificaciones` (
   `user_id` int DEFAULT NULL,
   `area_id` int NOT NULL,
   `sede_id` int NOT NULL,
-  `nivel_calificacion_id` int NOT NULL,
+  `tipo_calificacion` enum('csat','nps','fcr') DEFAULT NULL COMMENT 'Tipo de calificación: CSAT, NPS o FCR',
+  `valor_principal` int DEFAULT NULL COMMENT 'CSAT: 1-4, NPS: 0-10, FCR: 0=Sí, 1=No',
+  `nivel_calificacion_id` int DEFAULT NULL COMMENT 'NULL para FCR y NPS, 1-4 para CSAT',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -172,20 +174,22 @@ CREATE TABLE IF NOT EXISTS `calificaciones` (
   KEY `area_id` (`area_id`),
   KEY `sede_id` (`sede_id`),
   KEY `nivel_calificacion_id` (`nivel_calificacion_id`),
+  KEY `idx_tipo_calificacion` (`tipo_calificacion`),
+  KEY `idx_fecha` (`created_at`),
   CONSTRAINT `calificaciones_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `calificaciones_ibfk_2` FOREIGN KEY (`area_id`) REFERENCES `areas` (`id`),
-  CONSTRAINT `calificaciones_ibfk_3` FOREIGN KEY (`sede_id`) REFERENCES `sedes` (`id`),
-  CONSTRAINT `calificaciones_ibfk_4` FOREIGN KEY (`nivel_calificacion_id`) REFERENCES `niveles_calificacion` (`id`)
+  CONSTRAINT `calificaciones_ibfk_2` FOREIGN KEY (`area_id`) REFERENCES `areas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `calificaciones_ibfk_3` FOREIGN KEY (`sede_id`) REFERENCES `sedes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `calificaciones_ibfk_4` FOREIGN KEY (`nivel_calificacion_id`) REFERENCES `niveles_calificacion` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Volcando datos para la tabla calificador_unifranz.calificaciones: ~3 rows (aproximadamente)
-INSERT INTO `calificaciones` (`id`, `user_id`, `area_id`, `sede_id`, `nivel_calificacion_id`, `created_at`, `updated_at`) VALUES
-	(25, NULL, 37, 2, 1, '2025-10-28 06:12:19', '2025-10-28 06:12:19'),
-	(26, NULL, 37, 2, 1, '2025-10-28 06:28:44', '2025-10-28 06:28:44'),
-	(31, NULL, 42, 2, 1, '2025-10-29 08:57:31', '2025-10-29 08:57:31'),
-	(32, NULL, 42, 2, 1, '2025-10-29 09:04:33', '2025-10-29 09:04:33'),
-	(33, NULL, 42, 2, 1, '2025-10-29 09:10:36', '2025-10-29 09:10:36'),
-	(34, NULL, 42, 2, 1, '2025-10-29 09:13:24', '2025-10-29 09:13:24');
+-- Volcando datos para la tabla calificador_unifranz.calificaciones: ~6 rows (aproximadamente)
+INSERT INTO `calificaciones` (`id`, `user_id`, `area_id`, `sede_id`, `tipo_calificacion`, `valor_principal`, `nivel_calificacion_id`, `created_at`, `updated_at`) VALUES
+	(25, NULL, 37, 2, 'csat', 1, 1, '2025-10-28 06:12:19', '2025-10-28 06:12:19'),
+	(26, NULL, 37, 2, 'csat', 1, 1, '2025-10-28 06:28:44', '2025-10-28 06:28:44'),
+	(31, NULL, 42, 2, 'fcr', 0, NULL, '2025-10-29 08:57:31', '2025-10-29 08:57:31'),
+	(32, NULL, 42, 2, 'fcr', 0, NULL, '2025-10-29 09:04:33', '2025-10-29 09:04:33'),
+	(33, NULL, 42, 2, 'fcr', 0, NULL, '2025-10-29 09:10:36', '2025-10-29 09:10:36'),
+	(34, NULL, 42, 2, 'fcr', 0, NULL, '2025-10-29 09:13:24', '2025-10-29 09:13:24');
 
 -- Volcando estructura para tabla calificador_unifranz.migrations
 CREATE TABLE IF NOT EXISTS `migrations` (
@@ -263,86 +267,74 @@ INSERT INTO `opciones_pregunta` (`id`, `pregunta_id`, `opcion`, `created_at`, `u
 	(96, 8, 'No', '2025-10-29 08:56:06', '2025-10-29 08:56:06', 1);
 
 -- Volcando estructura para tabla calificador_unifranz.preguntas
+-- Tipos de preguntas:
+-- - CSAT: 4 preguntas (una por nivel 1-4) con nivel_calificacion_id
+-- - NPS: 1 pregunta tipo indicador_0_10 con tipo_pregunta='nps' y nivel_calificacion_id NULL
+-- - FCR: 1 pregunta tipo opcion_unica con tipo_pregunta='fcr' y nivel_calificacion_id NULL
 CREATE TABLE IF NOT EXISTS `preguntas` (
   `id` int NOT NULL AUTO_INCREMENT,
   `pregunta` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `descripcion` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tipo` enum('opcion_unica','opcion_multiple','texto_libre','indicador_0_10','opcion_unica_texto_libre') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tipo_pregunta` enum('csat','nps','fcr') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `niveles_calificacion_id` bigint unsigned DEFAULT NULL,
+  `tipo_pregunta` enum('csat','nps','fcr') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'NULL = pregunta normal, con valor = pregunta genérica',
+  `niveles_calificacion_id` bigint unsigned DEFAULT NULL COMMENT 'Solo para CSAT (1-4), NULL para NPS y FCR',
   `is_active` tinyint(1) DEFAULT '1',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `niveles_calificacion_id` (`niveles_calificacion_id`)
+  KEY `niveles_calificacion_id` (`niveles_calificacion_id`),
+  KEY `idx_tipo_pregunta` (`tipo_pregunta`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Volcando datos para la tabla calificador_unifranz.preguntas: ~6 rows (aproximadamente)
 INSERT INTO `preguntas` (`id`, `pregunta`, `descripcion`, `tipo`, `tipo_pregunta`, `niveles_calificacion_id`, `is_active`, `created_at`, `updated_at`) VALUES
-	(3, 'En una escala del 0 al 10, ¿qué tan probable es que recomiende UNIFRANZ a un amigo o\ncolega?', NULL, 'indicador_0_10', 'nps', 1, 1, '2025-10-28 06:58:59', '2025-10-28 06:58:59'),
+	(3, 'En una escala del 0 al 10, ¿qué tan probable es que recomiende UNIFRANZ a un amigo o\ncolega?', NULL, 'indicador_0_10', 'nps', NULL, 1, '2025-10-28 06:58:59', '2025-10-28 06:58:59'),
 	(4, '¿Qué podríamos haber hecho de manera diferente para que su experiencia con la atención\nfuera satisfactoria?', NULL, 'opcion_unica_texto_libre', 'csat', 1, 1, '2025-10-28 07:34:59', '2025-10-28 07:34:59'),
 	(5, '¿Qué podríamos haber hecho de manera diferente para que su experiencia con la atención fuera satisfactoria?', NULL, 'opcion_unica_texto_libre', 'csat', 2, 1, '2025-10-28 07:50:08', '2025-10-28 07:50:08'),
 	(6, '¿Qué fue lo que más disfrutó o valoró?', NULL, 'opcion_unica_texto_libre', 'csat', 3, 1, '2025-10-28 07:51:12', '2025-10-28 07:51:12'),
 	(7, '¿Qué fue lo que más disfrutó o valoró?', NULL, 'opcion_unica_texto_libre', 'csat', 4, 1, '2025-10-28 07:51:57', '2025-10-28 07:51:57'),
 	(8, '¿Se resolvió completamente su consulta o problema durante esta primera\ninteracción?', NULL, 'opcion_unica', 'fcr', NULL, 1, '2025-10-29 08:56:06', '2025-10-29 08:56:06');
 
--- Volcando estructura para tabla calificador_unifranz.pregunta_indicador_rangos
-CREATE TABLE IF NOT EXISTS `pregunta_indicador_rangos` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `pregunta_indicador_id` int NOT NULL,
-  `rango_min` int NOT NULL,
-  `rango_max` int NOT NULL,
-  `pregunta_texto` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tipo` enum('opcion_unica','opcion_multiple','texto_libre','opcion_unica_texto_libre') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `opciones` json DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `unique_rango_por_indicador` (`pregunta_indicador_id`,`rango_min`,`rango_max`),
-  CONSTRAINT `pregunta_indicador_rangos_ibfk_1` FOREIGN KEY (`pregunta_indicador_id`) REFERENCES `preguntas` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Volcando datos para la tabla calificador_unifranz.pregunta_indicador_rangos: ~0 rows (aproximadamente)
+-- ⚠️ TABLA ELIMINADA: pregunta_indicador_rangos ya no se usa
+-- Las preguntas de rango ahora se guardan en subpreguntas con es_rango_indicador=TRUE
+-- Esta tabla ha sido eliminada del esquema actualizado
 
 -- Volcando estructura para tabla calificador_unifranz.respuestas_calificacion
 CREATE TABLE IF NOT EXISTS `respuestas_calificacion` (
   `id` int NOT NULL AUTO_INCREMENT,
   `calificacion_id` int NOT NULL,
-  `pregunta_id` int DEFAULT NULL,
-  `opcion_seleccionada_id` int DEFAULT NULL,
-  `respuesta_texto` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `pregunta_id` int DEFAULT NULL COMMENT 'ID de la pregunta principal (CSAT nivel, NPS, FCR)',
+  `opcion_seleccionada_id` int DEFAULT NULL COMMENT 'ID de la opción seleccionada (para opcion_unica)',
+  `opciones_seleccionadas` json DEFAULT NULL COMMENT 'Array de IDs (para opcion_multiple)',
+  `respuesta_texto` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Para texto_libre o texto de opcion_unica_texto_libre',
+  `valor_indicador` int DEFAULT NULL COMMENT 'Para indicador_0_10 (score NPS)',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT NULL,
-  `es_pregunta_rango` tinyint(1) DEFAULT '0',
-  `pregunta_rango_id` int DEFAULT NULL,
-  `opciones_seleccionadas` json DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `calificacion_id` (`calificacion_id`),
   KEY `pregunta_id` (`pregunta_id`),
   KEY `opcion_seleccionada_id` (`opcion_seleccionada_id`),
-  KEY `fk_respuesta_pregunta_rango` (`pregunta_rango_id`),
-  CONSTRAINT `fk_respuesta_pregunta_rango` FOREIGN KEY (`pregunta_rango_id`) REFERENCES `subpreguntas` (`id`) ON DELETE SET NULL,
   CONSTRAINT `respuestas_calificacion_ibfk_1` FOREIGN KEY (`calificacion_id`) REFERENCES `calificaciones` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `respuestas_calificacion_ibfk_2` FOREIGN KEY (`pregunta_id`) REFERENCES `preguntas` (`id`),
-  CONSTRAINT `respuestas_calificacion_ibfk_3` FOREIGN KEY (`opcion_seleccionada_id`) REFERENCES `opciones_pregunta` (`id`)
+  CONSTRAINT `respuestas_calificacion_ibfk_2` FOREIGN KEY (`pregunta_id`) REFERENCES `preguntas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `respuestas_calificacion_ibfk_3` FOREIGN KEY (`opcion_seleccionada_id`) REFERENCES `opciones_pregunta` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Volcando datos para la tabla calificador_unifranz.respuestas_calificacion: ~3 rows (aproximadamente)
-INSERT INTO `respuestas_calificacion` (`id`, `calificacion_id`, `pregunta_id`, `opcion_seleccionada_id`, `respuesta_texto`, `created_at`, `updated_at`, `es_pregunta_rango`, `pregunta_rango_id`, `opciones_seleccionadas`) VALUES
-	(22, 31, 8, 95, NULL, '2025-10-29 08:57:31', '2025-10-29 08:57:31', 0, NULL, NULL),
-	(23, 32, 8, 95, NULL, '2025-10-29 09:04:33', '2025-10-29 09:04:33', 0, NULL, NULL),
-	(24, 33, 8, 95, NULL, '2025-10-29 09:10:36', '2025-10-29 09:10:36', 0, NULL, NULL),
-	(25, 34, 8, 95, NULL, '2025-10-29 09:13:24', '2025-10-29 09:13:24', 0, NULL, NULL);
+-- Volcando datos para la tabla calificador_unifranz.respuestas_calificacion: ~4 rows (aproximadamente)
+INSERT INTO `respuestas_calificacion` (`id`, `calificacion_id`, `pregunta_id`, `opcion_seleccionada_id`, `respuesta_texto`, `valor_indicador`, `created_at`, `updated_at`) VALUES
+	(22, 31, 8, 95, NULL, NULL, '2025-10-29 08:57:31', '2025-10-29 08:57:31'),
+	(23, 32, 8, 95, NULL, NULL, '2025-10-29 09:04:33', '2025-10-29 09:04:33'),
+	(24, 33, 8, 95, NULL, NULL, '2025-10-29 09:10:36', '2025-10-29 09:10:36'),
+	(25, 34, 8, 95, NULL, NULL, '2025-10-29 09:13:24', '2025-10-29 09:13:24');
 
 -- Volcando estructura para tabla calificador_unifranz.respuestas_subpreguntas
 CREATE TABLE IF NOT EXISTS `respuestas_subpreguntas` (
   `id` int NOT NULL AUTO_INCREMENT,
   `calificacion_id` int NOT NULL,
   `subpregunta_id` int NOT NULL,
-  `opcion_seleccionada` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `opciones_seleccionadas` json DEFAULT NULL,
-  `texto_respuesta` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `valor_indicador` int DEFAULT NULL,
+  `opcion_seleccionada` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Texto de la opción seleccionada (para opcion_unica)',
+  `opciones_seleccionadas` json DEFAULT NULL COMMENT 'Array de textos (para opcion_multiple)',
+  `texto_respuesta` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Para texto_libre',
+  `valor_indicador` int DEFAULT NULL COMMENT 'Para indicador_0_10',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -374,22 +366,28 @@ INSERT INTO `sedes` (`id`, `nombre`, `lat`, `lng`, `created_at`, `updated_at`) V
 	(4, 'Cochabamba', -17.38950000, -66.15680000, '2025-09-27 03:44:45', '2025-10-06 16:24:22');
 
 -- Volcando estructura para tabla calificador_unifranz.subpreguntas
+-- Esta tabla almacena subpreguntas de tres tipos:
+-- 1. Subpreguntas de opciones (opcion_pregunta_id) - Ej: subpreguntas al seleccionar "No" en FCR
+-- 2. Subpreguntas de rangos NPS (pregunta_indicador_id + es_rango_indicador=TRUE) - Ej: preguntas para rango 0-6, 7-8, 9-10
+-- 3. Subpreguntas directas de preguntas (pregunta_id) - Futuro uso
 CREATE TABLE IF NOT EXISTS `subpreguntas` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `opcion_pregunta_id` int DEFAULT NULL,
+  `opcion_pregunta_id` int DEFAULT NULL COMMENT 'Subpregunta de una opción específica (ej: FCR "No")',
+  `pregunta_id` int DEFAULT NULL COMMENT 'Subpregunta directa de una pregunta (futuro uso)',
   `pregunta_texto` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `tipo` enum('opcion_unica','opcion_multiple','texto_libre','indicador_0_10','opcion_unica_texto_libre') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `opciones` json DEFAULT NULL,
+  `opciones` json DEFAULT NULL COMMENT 'Array de opciones para tipos opcion_unica/multiple',
+  `es_rango_indicador` tinyint(1) DEFAULT '0' COMMENT 'TRUE = pregunta de rango para NPS',
+  `rango_min` int DEFAULT NULL COMMENT 'Valor mínimo del rango (solo para es_rango_indicador)',
+  `rango_max` int DEFAULT NULL COMMENT 'Valor máximo del rango (solo para es_rango_indicador)',
+  `pregunta_indicador_id` int DEFAULT NULL COMMENT 'Para preguntas de rango NPS (vinculada a pregunta NPS principal)',
   `is_active` tinyint(1) DEFAULT '1',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT NULL,
-  `es_rango_indicador` tinyint(1) DEFAULT '0',
-  `rango_min` int DEFAULT NULL,
-  `rango_max` int DEFAULT NULL,
-  `pregunta_indicador_id` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `opcion_pregunta_id` (`opcion_pregunta_id`),
   KEY `fk_subpregunta_indicador` (`pregunta_indicador_id`),
+  KEY `idx_rango` (`es_rango_indicador`, `rango_min`, `rango_max`),
   CONSTRAINT `fk_subpregunta_indicador` FOREIGN KEY (`pregunta_indicador_id`) REFERENCES `preguntas` (`id`) ON DELETE CASCADE,
   CONSTRAINT `subpreguntas_ibfk_1` FOREIGN KEY (`opcion_pregunta_id`) REFERENCES `opciones_pregunta` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

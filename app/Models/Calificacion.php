@@ -15,7 +15,13 @@ class Calificacion extends Model
         'user_id',
         'area_id', 
         'sede_id',
-        'nivel_calificacion_id',
+        'tipo_calificacion', // 🔥 NUEVO: csat, nps, fcr
+        'valor_principal', // 🔥 NUEVO: CSAT 1-4, NPS 0-10, FCR 0/1
+        'nivel_calificacion_id', // NULL para NPS y FCR, 1-4 para CSAT
+    ];
+    
+    protected $casts = [
+        'valor_principal' => 'integer',
     ];
 
     // Relaciones

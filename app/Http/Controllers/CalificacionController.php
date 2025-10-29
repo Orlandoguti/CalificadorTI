@@ -82,22 +82,112 @@ public function guardarCompleta(Request $request)
         $validated = $request->validate([
             'area_id' => 'required|exists:areas,id',
             'sede_id' => 'required|exists:sedes,id',
-            'nivel_calificacion_id' => 'required|exists:niveles_calificacion,id',
-            'respuestas' => 'required|array',
+            'nivel_calificacion_id' => 'nullable|exists:niveles_calificacion,id', // 🔥 CORRECCIÓN FCR: Opcional, puede ser NULL
+            'respuestas' => 'sometimes|array', // 🔥 CORRECCIÓN: Cambiar a 'sometimes' para permitir FCR sin respuestas normales
             'respuestas_subpreguntas' => 'sometimes|array',
             'respuestas_rangos' => 'sometimes|array'
         ]);
+        
+        // 🔥 CORRECCIÓN: Inicializar respuestas como array vacío si no está presente
+        if (!isset($validated['respuestas'])) {
+            $validated['respuestas'] = [];
+        }
+        if (!isset($validated['respuestas_subpreguntas'])) {
+            $validated['respuestas_subpreguntas'] = [];
+        }
+        if (!isset($validated['respuestas_rangos'])) {
+            $validated['respuestas_rangos'] = [];
+        }
+        
+        // 🔥 CORRECCIÓN FCR: Validar que haya al menos respuestas normales O subpreguntas O rangos
+        $tieneRespuestas = !empty($validated['respuestas']);
+        $tieneSubpreguntas = !empty($validated['respuestas_subpreguntas']) && count($validated['respuestas_subpreguntas']) > 0;
+        $tieneRangos = !empty($validated['respuestas_rangos']) && count($validated['respuestas_rangos']) > 0;
+        
+        if (!$tieneRespuestas && !$tieneSubpreguntas && !$tieneRangos) {
+            return response()->json([
+                'error' => 'Debe haber al menos una respuesta (normal, subpregunta o rango)'
+            ], 422);
+        }
 
         // AHORA SÍ podemos loguear los datos validados
         Log::info('🔍 RESPuestas_rangos:', isset($validated['respuestas_rangos']) ? $validated['respuestas_rangos'] : 'NO HAY');
         Log::info('Datos validados:', $validated);
+
+        // 🔥 NUEVO: Determinar tipo_calificacion y valor_principal
+        $tipoCalificacion = null;
+        $valorPrincipal = null;
+        $nivelCalificacionId = $validated['nivel_calificacion_id'] ?? null;
+        
+        // Buscar en las respuestas para determinar el tipo
+        foreach ($validated['respuestas'] as $preguntaId => $respuesta) {
+            if (!is_numeric($preguntaId)) continue;
+            
+            $pregunta = Pregunta::find($preguntaId);
+            if (!$pregunta) continue;
+            
+            // Si la pregunta tiene tipo_pregunta, usamos ese
+            if ($pregunta->tipo_pregunta) {
+                $tipoCalificacion = $pregunta->tipo_pregunta;
+                
+                if ($tipoCalificacion === 'nps') {
+                    // Para NPS, el valor está en la respuesta (valor_indicador)
+                    $valorPrincipal = is_array($respuesta) && isset($respuesta['valor']) 
+                        ? (int)$respuesta['valor'] 
+                        : (is_numeric($respuesta) ? (int)$respuesta : null);
+                    $nivelCalificacionId = null; // NPS no tiene nivel
+                } elseif ($tipoCalificacion === 'fcr') {
+                    // Para FCR, determinar si es Sí (0) o No (1) desde opcion_seleccionada_id
+                    if (is_array($respuesta) && isset($respuesta['opcion_seleccionada_id'])) {
+                        // Buscar la opción para ver si es "Sí" o "No"
+                        $opcion = \App\Models\OpcionPregunta::find($respuesta['opcion_seleccionada_id']);
+                        if ($opcion) {
+                            $valorPrincipal = strtolower(trim($opcion->opcion)) === 'sí' ? 0 : 1;
+                        }
+                    }
+                    $nivelCalificacionId = null; // FCR no tiene nivel
+                }
+                break; // Encontramos el tipo, salir del loop
+            } elseif ($nivelCalificacionId && $nivelCalificacionId >= 1 && $nivelCalificacionId <= 4) {
+                // Si tiene nivel_calificacion_id 1-4, es CSAT
+                $tipoCalificacion = 'csat';
+                $valorPrincipal = $nivelCalificacionId;
+            }
+        }
+        
+        // Si no se determinó por respuestas, usar nivel_calificacion_id
+        if (!$tipoCalificacion && $nivelCalificacionId) {
+            if ($nivelCalificacionId >= 1 && $nivelCalificacionId <= 4) {
+                $tipoCalificacion = 'csat';
+                $valorPrincipal = $nivelCalificacionId;
+            }
+        }
+        
+        // Si aún no se determinó, intentar desde respuestas_subpreguntas (FCR directo)
+        if (!$tipoCalificacion && $tieneSubpreguntas) {
+            // Verificar si las subpreguntas son de una pregunta FCR
+            foreach ($validated['respuestas_subpreguntas'] as $respSub) {
+                $subpregunta = \App\Models\Subpregunta::with(['opcion.pregunta'])->find($respSub['subpregunta_id'] ?? null);
+                if ($subpregunta && $subpregunta->opcion && $subpregunta->opcion->pregunta) {
+                    $preguntaFCR = $subpregunta->opcion->pregunta;
+                    if ($preguntaFCR->tipo_pregunta === 'fcr') {
+                        $tipoCalificacion = 'fcr';
+                        $valorPrincipal = 1; // Si hay subpreguntas, es "No"
+                        $nivelCalificacionId = null;
+                        break;
+                    }
+                }
+            }
+        }
 
         // Crear la calificación principal
         $calificacionData = [
             'user_id' => Auth::id() ?? null,
             'area_id' => $validated['area_id'],
             'sede_id' => $validated['sede_id'],
-            'nivel_calificacion_id' => $validated['nivel_calificacion_id'],
+            'tipo_calificacion' => $tipoCalificacion, // 🔥 NUEVO
+            'valor_principal' => $valorPrincipal, // 🔥 NUEVO
+            'nivel_calificacion_id' => $nivelCalificacionId,
         ];
 
         Log::info('Creando calificación con datos:', $calificacionData);
@@ -278,34 +368,75 @@ if (isset($validated['respuestas_rangos']) && is_array($validated['respuestas_ra
             Log::info('📥 Procesando respuestas de subpreguntas:', $validated['respuestas_subpreguntas']);
             
             foreach ($validated['respuestas_subpreguntas'] as $respuestaSubpregunta) {
+                Log::info('🔍 Procesando respuesta de subpregunta recibida:', $respuestaSubpregunta);
+                
                 // Preparar datos solo con campos que tienen valores
                 $dataSubpregunta = [
                     'calificacion_id' => $calificacion->id,
                     'subpregunta_id' => $respuestaSubpregunta['subpregunta_id']
                 ];
                 
+                // Verificar qué campos tienen datos válidos
+                $tieneOpcion = isset($respuestaSubpregunta['opcion_seleccionada']) 
+                    && $respuestaSubpregunta['opcion_seleccionada'] !== null 
+                    && $respuestaSubpregunta['opcion_seleccionada'] !== '';
+                
+                $tieneOpciones = isset($respuestaSubpregunta['opciones_seleccionadas']) 
+                    && $respuestaSubpregunta['opciones_seleccionadas'] !== null;
+                
+                $tieneTexto = isset($respuestaSubpregunta['texto_respuesta']) 
+                    && $respuestaSubpregunta['texto_respuesta'] !== null 
+                    && trim($respuestaSubpregunta['texto_respuesta']) !== '';
+                
+                $tieneValor = isset($respuestaSubpregunta['valor_indicador']) 
+                    && $respuestaSubpregunta['valor_indicador'] !== null;
+                
                 // Agregar solo los campos que tienen valores
-                if (isset($respuestaSubpregunta['opcion_seleccionada']) && $respuestaSubpregunta['opcion_seleccionada'] !== null) {
-                    $dataSubpregunta['opcion_seleccionada'] = $respuestaSubpregunta['opcion_seleccionada'];
+                if ($tieneOpcion) {
+                    $dataSubpregunta['opcion_seleccionada'] = trim($respuestaSubpregunta['opcion_seleccionada']);
                 }
                 
-                if (isset($respuestaSubpregunta['opciones_seleccionadas']) && $respuestaSubpregunta['opciones_seleccionadas'] !== null) {
-                    $dataSubpregunta['opciones_seleccionadas'] = is_string($respuestaSubpregunta['opciones_seleccionadas']) 
-                        ? $respuestaSubpregunta['opciones_seleccionadas'] 
-                        : json_encode($respuestaSubpregunta['opciones_seleccionadas']);
+                if ($tieneOpciones) {
+                    // 🔥 CORRECCIÓN: El modelo tiene cast 'array', así que pasar como array
+                    if (is_string($respuestaSubpregunta['opciones_seleccionadas'])) {
+                        // Si viene como string JSON, decodificar primero
+                        $decoded = json_decode($respuestaSubpregunta['opciones_seleccionadas'], true);
+                        $dataSubpregunta['opciones_seleccionadas'] = $decoded !== null ? $decoded : [];
+                    } else {
+                        // Si ya es array, pasar directamente
+                        $dataSubpregunta['opciones_seleccionadas'] = $respuestaSubpregunta['opciones_seleccionadas'];
+                    }
                 }
                 
-                if (isset($respuestaSubpregunta['texto_respuesta']) && $respuestaSubpregunta['texto_respuesta'] !== null && $respuestaSubpregunta['texto_respuesta'] !== '') {
-                    $dataSubpregunta['texto_respuesta'] = $respuestaSubpregunta['texto_respuesta'];
+                if ($tieneTexto) {
+                    $dataSubpregunta['texto_respuesta'] = trim($respuestaSubpregunta['texto_respuesta']);
                 }
                 
-                if (isset($respuestaSubpregunta['valor_indicador']) && $respuestaSubpregunta['valor_indicador'] !== null) {
-                    $dataSubpregunta['valor_indicador'] = $respuestaSubpregunta['valor_indicador'];
+                if ($tieneValor) {
+                    $dataSubpregunta['valor_indicador'] = (int)$respuestaSubpregunta['valor_indicador'];
+                }
+                
+                // 🔥 VALIDACIÓN: Debe tener al menos un campo de respuesta válido
+                $tieneDatos = $tieneOpcion || $tieneOpciones || $tieneTexto || $tieneValor;
+                
+                if (!$tieneDatos) {
+                    Log::warning('⚠️ Respuesta de subpregunta sin datos válidos, saltando...', [
+                        'subpregunta_id' => $respuestaSubpregunta['subpregunta_id'],
+                        'datos_recibidos' => $respuestaSubpregunta
+                    ]);
+                    continue; // Saltar esta respuesta
                 }
                 
                 Log::info('💾 Guardando respuesta de subpregunta:', $dataSubpregunta);
-                \App\Models\RespuestaSubpregunta::create($dataSubpregunta);
-                Log::info('✅ Respuesta de subpregunta guardada exitosamente');
+                try {
+                    \App\Models\RespuestaSubpregunta::create($dataSubpregunta);
+                    Log::info('✅ Respuesta de subpregunta guardada exitosamente');
+                } catch (\Exception $e) {
+                    Log::error('❌ Error guardando respuesta de subpregunta: ' . $e->getMessage());
+                    Log::error('❌ Stack trace: ' . $e->getTraceAsString());
+                    Log::error('❌ Datos que causaron el error:', $dataSubpregunta);
+                    throw $e; // Re-lanzar para que se capture en el catch principal
+                }
             }
         }
 

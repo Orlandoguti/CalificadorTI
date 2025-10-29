@@ -23,7 +23,7 @@
                     <div class="caritas">
                         <!-- Caritas de niveles -->
                         <div v-for="nivel in nivelesCalificacion" :key="nivel.id" class="carita-group">
-                            <div class="carita" @click="iniciarCuestionario(nivel)" :title="nivel.nombre">
+                            <div class="carita" @click.stop="iniciarCuestionario(nivel)" :title="nivel.nombre">
                                 <svg :viewBox="getSvgViewBox(nivel.id)">
                                     <circle cx="60" cy="60" r="58" :fill="getColorFondo(nivel.id)"/>
                                     <circle cx="45" cy="55" r="10" :fill="getColorOjos(nivel.id)"/>
@@ -31,7 +31,7 @@
                                     <path :d="getBocaSvg(nivel.id)" :stroke="getColorOjos(nivel.id)" stroke-width="5" fill="none" stroke-linecap="round"/>
                                 </svg>
                             </div>
-                            <div class="carita-label" @click="iniciarCuestionario(nivel)">
+                            <div class="carita-label" @click.stop="iniciarCuestionario(nivel)">
                                 {{ nivel.nombre }}
                             </div>
                         </div>
@@ -107,7 +107,7 @@
             </div>
 
             <!-- Modal Cuestionario -->
-            <div v-if="mostrarCuestionario" class="modal-overlay" @click="cancelarCuestionario">
+            <div v-if="mostrarCuestionario" class="modal-overlay" @click.self="cancelarCuestionario">
                 <div class="modal-container" @click.stop>
                     <div class="cuestionario-content">
                         <div class="cuestionario-header">
@@ -128,11 +128,6 @@
 
 <!-- VISTA PRINCIPAL: PREGUNTA NORMAL O DE RANGO -->
 <template v-if="!modoSubpreguntas">
-    <!-- 🔥 NUEVO: Ocultar pregunta NPS si ya fue respondida desde la vista principal -->
-    <div v-if="preguntaActual === 0 && preguntaActualData.tipo === 'indicador_0_10' && respuestas[preguntaActualData.id] && respuestas[preguntaActualData.id].valor !== undefined" class="pregunta-actual" style="display: none;">
-        <!-- Esta pregunta se oculta automáticamente -->
-    </div>
-    <template v-else>
     <div class="pregunta-actual">
         <div class="pregunta-header">
             <h3 class="pregunta-texto">{{ preguntaActualData.pregunta }}</h3>
@@ -142,6 +137,37 @@
                 📊 Pregunta según tu calificación
             </span>
         </div>
+    
+    <!-- 🔥 NUEVO: Indicador 0-10 (para preguntas NPS en el modal) -->
+        <div v-if="preguntaActualData.tipo === 'indicador_0_10'" class="indicador-container">
+            <div class="indicador-header">
+                <div class="indicador-labels">
+                    <span class="indicador-min">0</span>
+                    <span class="indicador-value">{{ respuestas[preguntaActualData.id]?.valor ?? respuestaIndicadorValor }}</span>
+                    <span class="indicador-max">10</span>
+                </div>
+            </div>
+            
+            <div class="indicador-track" @mousedown="iniciarArrastreIndicador($event)" @click="clickIndicador($event)">
+                <div class="indicador-progress" 
+                     :style="{ width: ((respuestas[preguntaActualData.id]?.valor ?? respuestaIndicadorValor) / 10 * 100) + '%' }">
+                </div>
+                <div class="indicador-thumb" 
+                     :style="{ left: ((respuestas[preguntaActualData.id]?.valor ?? respuestaIndicadorValor) / 10 * 100) + '%' }">
+                    <div class="thumb-circle"></div>
+                </div>
+            </div>
+            
+            <div class="indicador-ticks">
+                <span v-for="n in 11" :key="n" 
+                      class="tick" 
+                      :class="{ active: (respuestas[preguntaActualData.id]?.valor ?? respuestaIndicadorValor) >= n-1 }" 
+                      @click="seleccionarValorIndicador(n-1)">
+                    {{ n-1 }}
+                </span>
+            </div>
+        </div>
+    
     <!-- ✅ CORRECCIÓN: Template para opción única -->
                 <div v-if="preguntaActualData.tipo === 'opcion_unica'" class="opciones-container">
                     <div 
@@ -248,7 +274,6 @@
             {{ errorValidacion }}
         </div>
     </div>
-    </template>
 </template>
 
 <!-- VISTA SUBPREGUNTAS -->
@@ -516,7 +541,15 @@ export default {
         // Datos para opción única con texto libre - CORREGIDO
         textoLibreOpcion: '',
         opcionTextoLibreSeleccionada: null,
-        respuestaUnica: null // AGREGAR ESTA LÍNEA
+        respuestaUnica: null, // AGREGAR ESTA LÍNEA
+        
+        // 🔥 NUEVO: Variables para flujo secuencial de tipos de calificación
+        tiposCalificacionSecuencia: [], // Array con el orden de tipos a procesar ['csat', 'nps', 'fcr']
+        tipoCalificacionActual: null, // Tipo actual que se está procesando ('csat', 'nps', 'fcr')
+        indiceTipoActual: 0, // Índice del tipo actual en la secuencia
+        respuestasAcumuladas: {}, // Acumular todas las respuestas de todos los tipos
+        respuestasSubpreguntasAcumuladas: [], // Acumular subpreguntas de todos los tipos
+        respuestasRangosAcumuladas: [] // Acumular rangos de todos los tipos
         }
     },
     computed: {
@@ -701,6 +734,210 @@ respuestaUnica: {
         }
     },
     methods: {
+        /**
+         * 🔥 NUEVO: Determinar la secuencia de tipos de calificación según el área
+         */
+        determinarSecuenciaTipos() {
+            const tipos = [];
+            
+            if (this.areaSeleccionada?.permite_csat) {
+                tipos.push('csat');
+            }
+            if (this.areaSeleccionada?.permite_nps) {
+                tipos.push('nps');
+            }
+            if (this.areaSeleccionada?.permite_fcr) {
+                tipos.push('fcr');
+            }
+            
+            this.tiposCalificacionSecuencia = tipos;
+            this.indiceTipoActual = 0;
+            this.tipoCalificacionActual = tipos.length > 0 ? tipos[0] : null;
+            
+            // Inicializar acumuladores
+            this.respuestasAcumuladas = {};
+            this.respuestasSubpreguntasAcumuladas = [];
+            this.respuestasRangosAcumuladas = [];
+            
+            console.log('📋 Secuencia de tipos determinada:', this.tiposCalificacionSecuencia);
+        },
+        
+        /**
+         * 🔥 NUEVO: Acumular respuestas del tipo actual antes de avanzar
+         */
+        acumularRespuestasActuales() {
+            // Acumular respuestas normales
+            this.respuestasAcumuladas = { ...this.respuestasAcumuladas, ...this.respuestas };
+            
+            // Acumular subpreguntas
+            const subpreguntasActuales = this.extraerRespuestasSubpreguntas();
+            this.respuestasSubpreguntasAcumuladas = [...this.respuestasSubpreguntasAcumuladas, ...subpreguntasActuales];
+            
+            // Acumular rangos
+            const rangosActuales = this.extraerRespuestasRangos();
+            this.respuestasRangosAcumuladas = [...this.respuestasRangosAcumuladas, ...rangosActuales];
+            
+            console.log('💾 Respuestas acumuladas:', {
+                respuestas: Object.keys(this.respuestasAcumuladas).length,
+                subpreguntas: this.respuestasSubpreguntasAcumuladas.length,
+                rangos: this.respuestasRangosAcumuladas.length
+            });
+        },
+        
+        /**
+         * 🔥 NUEVO: Avanzar al siguiente tipo de calificación en la secuencia
+         */
+        async avanzarAlSiguienteTipo() {
+            // Acumular respuestas del tipo actual antes de avanzar
+            this.acumularRespuestasActuales();
+            
+            // Limpiar respuestas actuales para el siguiente tipo
+            this.respuestas = {};
+            this.respuestasSubpreguntas = {};
+            this.respuestasRangos = [];
+            this.modoSubpreguntas = false;
+            this.subpreguntasActuales = [];
+            this.subpreguntaIndex = 0;
+            this.preguntaActual = 0;
+            this.preguntas = [];
+            
+            // Cerrar modal actual antes de iniciar el siguiente
+            this.mostrarCuestionario = false;
+            this.cargando = true;
+            
+            this.indiceTipoActual++;
+            
+            if (this.indiceTipoActual >= this.tiposCalificacionSecuencia.length) {
+                // Ya terminamos todos los tipos, guardar y mostrar agradecimiento
+                console.log('🎉 Todos los tipos completados, guardando y mostrando agradecimiento...');
+                await this.guardarCalificacionCompletaSecuencial();
+                this.mostrarCuestionario = false;
+                this.mostrarAgradecimiento = true;
+                this.iniciarTemporizadorCierre();
+                this.cargando = false;
+                return;
+            }
+            
+            this.tipoCalificacionActual = this.tiposCalificacionSecuencia[this.indiceTipoActual];
+            console.log('➡️ Avanzando al siguiente tipo:', this.tipoCalificacionActual);
+            
+            // Iniciar el siguiente tipo
+            await this.iniciarTipoCalificacion(this.tipoCalificacionActual);
+            this.cargando = false;
+        },
+        
+        /**
+         * 🔥 NUEVO: Iniciar un tipo específico de calificación
+         */
+        async iniciarTipoCalificacion(tipo) {
+            console.log('🚀 Iniciando tipo de calificación:', tipo);
+            
+            if (tipo === 'nps') {
+                // Iniciar NPS
+                await this.iniciarConNPS();
+            } else if (tipo === 'fcr') {
+                // 🔥 CORRECCIÓN: Cargar pregunta FCR y mostrarla en el modal como pregunta normal
+                if (!this.preguntaFCRPrincipal) {
+                    await this.cargarPreguntaFCR();
+                }
+                
+                // Cargar la pregunta FCR como pregunta normal para que el usuario la seleccione
+                if (this.preguntaFCRPrincipal) {
+                    // Establecer nivel para FCR
+                    this.nivelSeleccionado = { 
+                        id: null, 
+                        nombre: 'FCR',
+                        esFCR: true
+                    };
+                    
+                    // Cargar la pregunta FCR en el array de preguntas para mostrarla en el modal
+                    this.preguntas = [this.preguntaFCRPrincipal];
+                    this.preguntaActual = 0;
+                    this.respuestas = {};
+                    this.mostrarCuestionario = true;
+                    this.cargando = false;
+                    
+                    console.log('✅ FCR cargado como pregunta normal, esperando selección del usuario');
+                } else {
+                    console.error('❌ No se pudo cargar la pregunta FCR');
+                    this.cargando = false;
+                }
+            }
+            // CSAT se inicia desde la pantalla inicial con las caritas, no necesita llamada aquí
+        },
+        
+        /**
+         * 🔥 NUEVO: Guardar calificación completa después de todos los tipos
+         */
+        async guardarCalificacionCompletaSecuencial() {
+            // Restaurar respuestas acumuladas antes de guardar
+            this.respuestas = { ...this.respuestasAcumuladas };
+            
+            // Combinar todas las respuestas de subpreguntas
+            const todasSubpreguntas = [
+                ...this.respuestasSubpreguntasAcumuladas,
+                ...this.extraerRespuestasSubpreguntas()
+            ];
+            
+            // Combinar todas las respuestas de rangos
+            const todosRangos = [
+                ...this.respuestasRangosAcumuladas,
+                ...this.extraerRespuestasRangos()
+            ];
+            
+            // Guardar con todas las respuestas acumuladas
+            try {
+                const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(this.sedeNombre)}`);
+                let sedeId = null;
+                if (sedeResponse.ok) {
+                    const sedeData = await sedeResponse.json();
+                    sedeId = sedeData.id;
+                } else {
+                    sedeId = 1;
+                }
+
+                let respuestasFormato = this.respuestas;
+                if (respuestasFormato && typeof respuestasFormato === 'object' && !Array.isArray(respuestasFormato)) {
+                    if (Object.keys(respuestasFormato).length === 0) {
+                        respuestasFormato = {};
+                    }
+                } else if (!respuestasFormato || Array.isArray(respuestasFormato)) {
+                    respuestasFormato = {};
+                }
+                
+                const calificacionData = {
+                    area_id: this.areaSeleccionada.id,
+                    nivel_calificacion_id: this.nivelSeleccionado?.esFCR ? null : (this.nivelSeleccionado?.id || null),
+                    sede_id: sedeId,
+                    respuestas: respuestasFormato,
+                    respuestas_subpreguntas: todasSubpreguntas,
+                    respuestas_rangos: todosRangos
+                };
+
+                console.log('📤 Guardando calificación completa secuencial:', JSON.stringify(calificacionData, null, 2));
+
+                const response = await fetch('/api/calificaciones/completa', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify(calificacionData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                console.log('✅ Calificación secuencial guardada exitosamente:', result);
+                
+            } catch (error) {
+                console.error('❌ Error guardando calificación secuencial:', error);
+                alert('Error al guardar la calificación: ' + error.message);
+            }
+        },
+        
         async cargarDatosIniciales() {
             this.cargandoDatos = true;
             try {
@@ -720,6 +957,9 @@ respuestaUnica: {
                             console.log('✅ Permite CSAT:', this.areaSeleccionada.permite_csat);
                             console.log('✅ Permite NPS:', this.areaSeleccionada.permite_nps);
                             console.log('✅ Permite FCR:', this.areaSeleccionada.permite_fcr);
+                            
+                            // 🔥 NUEVO: Determinar secuencia de tipos de calificación
+                            this.determinarSecuenciaTipos();
                             
                             // Debug específico para FCR
                             if (!this.areaSeleccionada.permite_csat && !this.areaSeleccionada.permite_nps && this.areaSeleccionada.permite_fcr) {
@@ -792,6 +1032,11 @@ respuestaUnica: {
             this.nivelSeleccionado = nivel;
             this.cargando = true;
             
+            // 🔥 NUEVO: Si es CSAT, establecer el tipo actual
+            if (!this.tipoCalificacionActual) {
+                this.tipoCalificacionActual = 'csat';
+            }
+            
             try {
                 const sedeGuardada = localStorage.getItem('sede_seleccionada');
                 let sedeId = null;
@@ -818,11 +1063,33 @@ respuestaUnica: {
                 if (response.ok) {
                     const todasLasPreguntas = await response.json();
                     
-                    // 🔥 CORRECIÓN: Filtrar solo preguntas raíces para comenzar
+                    // 🔥 CORRECIÓN: Filtrar solo preguntas raíces para comenzar, excluyendo otros tipos de calificación
                     this.preguntas = todasLasPreguntas.filter(pregunta => {
                         // Mostrar solo preguntas raíces (no condicionales)
                         const esRaiz = !pregunta.es_condicional || pregunta.es_condicional === false;
-                        // Verificar que pertenezca al nivel seleccionado O sea genérica (sin nivel específico)
+                        
+                        // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Filtrar según el tipo de calificación actual
+                        let esDelTipoCorrecto = true;
+                        
+                        if (this.tipoCalificacionActual === 'csat') {
+                            // En CSAT: solo preguntas CSAT (sin tipo_pregunta o tipo_pregunta === 'csat') o preguntas del nivel específico
+                            esDelTipoCorrecto = (pregunta.tipo_pregunta === null || pregunta.tipo_pregunta === 'csat' || !pregunta.tipo_pregunta) && 
+                                               pregunta.tipo_pregunta !== 'nps' && 
+                                               pregunta.tipo_pregunta !== 'fcr';
+                            // También incluir preguntas del nivel específico
+                            const esDelNivel = pregunta.niveles_calificacion_id == nivel.id;
+                            return esRaiz && esDelTipoCorrecto && esDelNivel;
+                        } else if (this.tipoCalificacionActual === 'nps') {
+                            // En NPS: solo preguntas NPS
+                            esDelTipoCorrecto = pregunta.tipo_pregunta === 'nps';
+                            return esRaiz && esDelTipoCorrecto;
+                        } else if (this.tipoCalificacionActual === 'fcr') {
+                            // En FCR: solo preguntas FCR
+                            esDelTipoCorrecto = pregunta.tipo_pregunta === 'fcr';
+                            return esRaiz && esDelTipoCorrecto;
+                        }
+                        
+                        // Fallback: verificar que pertenezca al nivel seleccionado O sea genérica (sin nivel específico)
                         const esDelNivelCorrecto = pregunta.niveles_calificacion_id == nivel.id || 
                                                    (pregunta.tipo_pregunta !== null && pregunta.niveles_calificacion_id === null);
                         
@@ -832,12 +1099,15 @@ respuestaUnica: {
                     console.log('📝 Preguntas raíces cargadas:', this.preguntas.length);
                     console.log('📝 Todas las preguntas disponibles:', todasLasPreguntas.length);
                     console.log('🔍 Nivel seleccionado:', nivel.id, nivel.nombre);
+                    console.log('🎯 Tipo de calificación actual:', this.tipoCalificacionActual);
                     console.log('📋 Preguntas filtradas:', this.preguntas.map(p => ({
                         id: p.id,
                         pregunta: p.pregunta,
                         nivel_id: p.niveles_calificacion_id,
                         tipo: p.tipo_pregunta
                     })));
+                    console.log('📋 Secuencia completa:', this.tiposCalificacionSecuencia);
+                    console.log('📋 Índice actual:', this.indiceTipoActual);
                     
                     // 🔥 NUEVO: Guardar todas las preguntas para referencia
                     this.todasLasPreguntas = todasLasPreguntas;
@@ -1039,8 +1309,56 @@ async procesarPreguntaNormal() {
     // 🔥 NUEVO: Guardar respuesta si es una pregunta de rango
     if (preguntaActual.es_pregunta_rango) {
         this.guardarRespuestaPreguntaRango();
+        
+        // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Verificar si hay más tipos después de NPS
+        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                            this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+        
+        if (!hayMasTipos && this.tipoCalificacionActual === 'nps') {
+            console.log('🎉 NPS final (último tipo): Finalizando calificación completa...');
+            await this.guardarCalificacionCompleta();
+            this.mostrarCuestionario = false;
+            this.mostrarAgradecimiento = true;
+            this.iniciarTemporizadorCierre();
+            return;
+        }
     }
 
+    // 🔥 CORRECCIÓN FCR: Verificar si es pregunta FCR y manejar según la respuesta
+    if (this.tipoCalificacionActual === 'fcr' && preguntaActual.tipo_pregunta === 'fcr') {
+        const opcionSeleccionada = preguntaActual.opciones.find(
+            op => op.id === respuesta.opcion_seleccionada_id
+        );
+        
+        if (opcionSeleccionada) {
+            const esSí = opcionSeleccionada.opcion.toLowerCase() === 'sí' || opcionSeleccionada.opcion.toLowerCase() === 'si';
+            const esNo = opcionSeleccionada.opcion.toLowerCase() === 'no';
+            
+            if (esSí) {
+                // Si selecciona "Sí", finalizar directamente (no hay más tipos después de FCR)
+                console.log('✅ FCR: Se resolvió (Sí), finalizando...');
+                await this.guardarCalificacionCompleta();
+                this.mostrarCuestionario = false;
+                this.mostrarAgradecimiento = true;
+                this.iniciarTemporizadorCierre();
+                return;
+            } else if (esNo && opcionSeleccionada.tiene_subpreguntas) {
+                // Si selecciona "No" y tiene subpreguntas, cargarlas
+                console.log('❌ FCR: NO se resolvió, cargando subpreguntas...');
+                await this.iniciarModoSubpreguntas(opcionSeleccionada.id);
+                return;
+            } else if (esNo) {
+                // Si selecciona "No" pero NO tiene subpreguntas, finalizar igualmente
+                console.log('❌ FCR: NO se resolvió, pero no hay subpreguntas configuradas. Finalizando...');
+                await this.guardarCalificacionCompleta();
+                this.mostrarCuestionario = false;
+                this.mostrarAgradecimiento = true;
+                this.iniciarTemporizadorCierre();
+                return;
+            }
+        }
+    }
+    
     // Verificar si la opción seleccionada tiene subpreguntas (solo para preguntas normales)
     if (!preguntaActual.es_pregunta_rango && 
         ['opcion_unica', 'opcion_unica_texto_libre'].includes(preguntaActual.tipo) && 
@@ -1057,13 +1375,13 @@ async procesarPreguntaNormal() {
         }
     }
 
-    // 🔥 CORRECCIÓN CSAT: Verificar si es solo CSAT antes de avanzar
-    const soloCSAT = this.areaSeleccionada?.permite_csat && 
-                    !this.areaSeleccionada?.permite_nps && 
-                    !this.areaSeleccionada?.permite_fcr;
+    // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Verificar si hay más tipos en la secuencia
+    const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                        this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
     
-    if (soloCSAT) {
-        console.log('🎉 CSAT solo en procesarPreguntaNormal: Finalizando calificación completa...');
+    // Si no hay más tipos y es CSAT, finalizar
+    if (!hayMasTipos && this.tipoCalificacionActual === 'csat') {
+        console.log('🎉 CSAT final (último tipo): Finalizando calificación completa...');
         await this.guardarCalificacionCompleta();
         this.mostrarCuestionario = false;
         this.mostrarAgradecimiento = true;
@@ -1131,46 +1449,38 @@ async iniciarModoSubpreguntas(opcionId) {
 async finalizarSubpreguntas() {
     console.log('🏁 Finalizando modo subpreguntas');
     
-    // 🔥 NUEVO: Si estamos en modo FCR directo, finalizar la calificación completa
-    if (this.nivelSeleccionado?.esFCR) {
-        console.log('🎉 FCR: Guardando calificación completa...');
-        
-        // Guardar respuestas de subpreguntas
-        await this.guardarRespuestasSubpreguntas();
-        
-        // Guardar la calificación completa
+    // Guardar respuestas de subpreguntas
+    await this.guardarRespuestasSubpreguntas();
+    
+    // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Verificar si hay más tipos en la secuencia
+    const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                        this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+    
+    // Si es FCR y no hay más tipos, finalizar
+    if ((this.nivelSeleccionado?.esFCR || this.tipoCalificacionActual === 'fcr') && !hayMasTipos) {
+        console.log('🎉 FCR final (último tipo): Guardando calificación completa...');
         await this.guardarCalificacionCompleta();
-        
-        // Mostrar agradecimiento
         this.mostrarCuestionario = false;
         this.mostrarAgradecimiento = true;
         this.iniciarTemporizadorCierre();
-    } else {
-        // Guardar respuestas de subpreguntas
-        await this.guardarRespuestasSubpreguntas();
-        
-        // Limpiar estados
-        this.modoSubpreguntas = false;
-        this.subpreguntasActuales = [];
-        this.subpreguntaIndex = 0;
-        
-        // 🔥 CORRECCIÓN CSAT: Si solo hay CSAT (sin NPS/FCR), finalizar directamente
-        const soloCSAT = this.areaSeleccionada.permite_csat && 
-                        !this.areaSeleccionada.permite_nps && 
-                        !this.areaSeleccionada.permite_fcr;
-        
-        if (soloCSAT) {
-            console.log('🎉 CSAT solo: Finalizando calificación completa...');
-            await this.guardarCalificacionCompleta();
-            this.mostrarCuestionario = false;
-            this.mostrarAgradecimiento = true;
-            this.iniciarTemporizadorCierre();
-        } else {
-            // Continuar con siguiente pregunta normal
-            this.preguntaActual++;
-            await this.verificarFinalizacion();
-        }
+        return;
     }
+    
+    // Si hay más tipos, avanzar al siguiente
+    if (hayMasTipos) {
+        console.log('➡️ Tipo actual completado, avanzando al siguiente tipo...');
+        await this.avanzarAlSiguienteTipo();
+        return;
+    }
+    
+    // Limpiar estados y continuar con siguiente pregunta normal
+    this.modoSubpreguntas = false;
+    this.subpreguntasActuales = [];
+    this.subpreguntaIndex = 0;
+    
+    // Continuar con siguiente pregunta normal
+    this.preguntaActual++;
+    await this.verificarFinalizacion();
 },
 
 /**
@@ -1178,7 +1488,18 @@ async finalizarSubpreguntas() {
  */
 async verificarFinalizacion() {
     if (this.preguntaActual >= this.preguntas.length) {
-        console.log('🎉 Finalizando cuestionario');
+        // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Verificar si hay más tipos en la secuencia
+        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                            this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+        
+        if (hayMasTipos) {
+            console.log('➡️ Tipo actual completado, avanzando al siguiente tipo...');
+            await this.avanzarAlSiguienteTipo();
+            return;
+        }
+        
+        // Es el último tipo, finalizar
+        console.log('🎉 Finalizando último tipo de calificación');
         await this.guardarCalificacionCompleta();
         this.mostrarCuestionario = false;
         this.mostrarAgradecimiento = true;
@@ -1211,6 +1532,25 @@ async guardarCalificacionCompleta() {
     try {
         console.log('=== INICIANDO guardarCalificacionCompleta ===');
         
+        // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Si hay más tipos, solo acumular, no guardar todavía
+        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                            this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+        
+        if (hayMasTipos) {
+            console.log('💾 Hay más tipos, acumulando respuestas del tipo actual...');
+            this.acumularRespuestasActuales();
+            // No guardar todavía, solo acumular
+            return;
+        }
+        
+        // Si es el último tipo o flujo no secuencial, guardar
+        // 🔥 CORRECCIÓN: Combinar respuestas acumuladas con las actuales si estamos en flujo secuencial
+        let respuestasFinales = { ...this.respuestas };
+        if (this.tiposCalificacionSecuencia.length > 1) {
+            // Combinar con respuestas acumuladas
+            respuestasFinales = { ...this.respuestasAcumuladas, ...this.respuestas };
+        }
+        
         const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(this.sedeNombre)}`);
         let sedeId = null;
         if (sedeResponse.ok) {
@@ -1223,17 +1563,43 @@ async guardarCalificacionCompleta() {
         }
 
         // 🔥 NUEVO: Preparar datos para subpreguntas
-        const respuestasSubpreguntasData = this.extraerRespuestasSubpreguntas();
+        const respuestasSubpreguntasActuales = this.extraerRespuestasSubpreguntas();
         
         // 🔥 NUEVO: Preparar datos para preguntas de rango
-        const respuestasRangosData = this.extraerRespuestasRangos();
+        const respuestasRangosActuales = this.extraerRespuestasRangos();
+        
+        // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Combinar con acumuladas si hay
+        let todasSubpreguntas = respuestasSubpreguntasActuales;
+        let todosRangos = respuestasRangosActuales;
+        
+        if (this.tiposCalificacionSecuencia.length > 1) {
+            todasSubpreguntas = [
+                ...this.respuestasSubpreguntasAcumuladas,
+                ...respuestasSubpreguntasActuales
+            ];
+            todosRangos = [
+                ...this.respuestasRangosAcumuladas,
+                ...respuestasRangosActuales
+            ];
+        }
+        
+        // 🔥 CORRECCIÓN: Convertir respuestas a formato correcto
+        let respuestasFormato = respuestasFinales;
+        if (respuestasFormato && typeof respuestasFormato === 'object' && !Array.isArray(respuestasFormato)) {
+            if (Object.keys(respuestasFormato).length === 0) {
+                respuestasFormato = {};
+            }
+        } else if (!respuestasFormato || Array.isArray(respuestasFormato)) {
+            respuestasFormato = {};
+        }
+        
         const calificacionData = {
             area_id: this.areaSeleccionada.id,
-            nivel_calificacion_id: this.nivelSeleccionado.id,
+            nivel_calificacion_id: this.nivelSeleccionado?.esFCR ? null : (this.nivelSeleccionado?.id || null), // 🔥 CORRECCIÓN FCR: NULL para FCR
             sede_id: sedeId,
-            respuestas: this.respuestas,
-            respuestas_subpreguntas: respuestasSubpreguntasData, // 🔥 NUEVO
-            respuestas_rangos: respuestasRangosData // 🔥 NUEVO
+            respuestas: respuestasFormato,
+            respuestas_subpreguntas: todasSubpreguntas,
+            respuestas_rangos: todosRangos
         };
 
         console.log('📤 Enviando datos al servidor:', JSON.stringify(calificacionData, null, 2));
@@ -1278,22 +1644,42 @@ extraerRespuestasSubpreguntas() {
             
             console.log('🔍 Procesando respuesta de subpregunta:', subpreguntaId, respuesta, subpregunta);
             
-    if (respuesta && (respuesta.opcionSeleccionada !== null || respuesta.texto || respuesta.valor !== null || respuesta.opcionesSeleccionadas)) {
+    // 🔥 CORRECCIÓN: Verificar que haya al menos un dato válido
+    const tieneOpcion = respuesta?.opcionSeleccionada !== null && respuesta?.opcionSeleccionada !== undefined && respuesta?.opcionSeleccionada !== '';
+    const tieneTexto = respuesta?.texto && respuesta.texto.trim() !== '';
+    const tieneValor = respuesta?.valor !== null && respuesta?.valor !== undefined;
+    const tieneOpciones = respuesta?.opcionesSeleccionadas && Array.isArray(respuesta.opcionesSeleccionadas) && respuesta.opcionesSeleccionadas.length > 0;
+    
+    if (respuesta && (tieneOpcion || tieneTexto || tieneValor || tieneOpciones)) {
         const respuestaData = {
-            subpregunta_id: parseInt(subpreguntaId),
-            texto_respuesta: respuesta.texto || null,
-            opciones_seleccionadas: respuesta.opcionesSeleccionadas 
-                ? JSON.stringify(respuesta.opcionesSeleccionadas) 
-                : null,
-            valor_indicador: respuesta.valor || null
+            subpregunta_id: parseInt(subpreguntaId)
         };
         
-        // Para opción única, guardar el texto de la opción seleccionada
-        if (respuesta.opcionSeleccionada !== null && respuesta.opcionSeleccionada !== undefined) {
-            respuestaData.opcion_seleccionada = respuesta.opcionSeleccionada;
+        // 🔥 CORRECCIÓN: Para opción única, guardar el texto de la opción seleccionada (PRIORITARIO)
+        if (tieneOpcion) {
+            respuestaData.opcion_seleccionada = String(respuesta.opcionSeleccionada);
+            console.log('✅ Opción seleccionada agregada:', respuestaData.opcion_seleccionada);
         }
         
+        // Para opción múltiple
+        if (tieneOpciones) {
+            respuestaData.opciones_seleccionadas = respuesta.opcionesSeleccionadas;
+        }
+        
+        // Texto libre (solo si hay texto)
+        if (tieneTexto) {
+            respuestaData.texto_respuesta = respuesta.texto.trim();
+        }
+        
+        // Valor indicador (solo si hay valor)
+        if (tieneValor) {
+            respuestaData.valor_indicador = respuesta.valor;
+        }
+        
+        console.log('📦 Respuesta de subpregunta procesada:', respuestaData);
         respuestas.push(respuestaData);
+    } else {
+        console.warn('⚠️ Respuesta de subpregunta sin datos válidos:', { subpreguntaId, respuesta });
     }
         });
         
@@ -1440,10 +1826,14 @@ async cargarPreguntaRango(preguntaId, valor) {
                 return { texto: '' };
             case 'opcion_unica':
                 return { opcionSeleccionada: null };
+            case 'opcion_unica_texto_libre':
+                // 🔥 CORRECCIÓN: Inicializar correctamente para opcion_unica_texto_libre
+                return { opcionSeleccionada: null, texto: '' };
             case 'opcion_multiple':
                 return { opcionesSeleccionadas: [] };
             default:
-                return {};
+                // 🔥 CORRECCIÓN: Por defecto, usar estructura para opción única
+                return { opcionSeleccionada: null };
         }
     },
 
@@ -1505,10 +1895,10 @@ async cargarPreguntaRango(preguntaId, valor) {
             this.respuestas = {};
             this.errorValidacion = '';
             this.respuestaIndicadorValor = 5;
-            this.respuestaIndicadorNPS = 5; // 🔥 NUEVO: Resetear el slider NPS a 5
+            this.respuestaIndicadorNPS = 5;
             this.textoLibreOpcion = '';
             this.opcionTextoLibreSeleccionada = null;
-            this.respuestaUnica = null; // AGREGAR ESTA LÍNEA
+            this.respuestaUnica = null;
         },
 
         goToAreas() {
@@ -1750,11 +2140,16 @@ inicializarRespuestasSubpreguntas(subpreguntas) {
             case 'opcion_unica':
                 this.respuestasSubpreguntas[subpregunta.id] = { opcionSeleccionada: null };
                 break;
+            case 'opcion_unica_texto_libre':
+                // 🔥 CORRECCIÓN: Inicializar correctamente para opcion_unica_texto_libre
+                this.respuestasSubpreguntas[subpregunta.id] = { opcionSeleccionada: null, texto: '' };
+                break;
             case 'opcion_multiple':
                 this.respuestasSubpreguntas[subpregunta.id] = { opcionesSeleccionadas: [] };
                 break;
             default:
-                this.respuestasSubpreguntas[subpregunta.id] = {};
+                // 🔥 CORRECCIÓN: Por defecto, usar estructura para opción única
+                this.respuestasSubpreguntas[subpregunta.id] = { opcionSeleccionada: null };
         }
     });
     
@@ -1838,11 +2233,16 @@ inicializarRespuestasSubpreguntas() {
             case 'opcion_unica':
                 this.respuestasSubpreguntas[subpregunta.id] = { opcionSeleccionada: null };
                 break;
+            case 'opcion_unica_texto_libre':
+                // 🔥 CORRECCIÓN: Inicializar correctamente para opcion_unica_texto_libre
+                this.respuestasSubpreguntas[subpregunta.id] = { opcionSeleccionada: null, texto: '' };
+                break;
             case 'opcion_multiple':
                 this.respuestasSubpreguntas[subpregunta.id] = { opcionesSeleccionadas: [] };
                 break;
             default:
-                this.respuestasSubpreguntas[subpregunta.id] = {};
+                // 🔥 CORRECCIÓN: Por defecto, usar estructura para opción única
+                this.respuestasSubpreguntas[subpregunta.id] = { opcionSeleccionada: null };
         }
     });
     
@@ -1853,7 +2253,15 @@ inicializarRespuestasSubpreguntas() {
  * Guardar respuestas de subpreguntas en el objeto principal
  */
 guardarRespuestasSubpreguntas() {
-    if (this.subpreguntasActuales.length > 0 && this.respuestaUnica) {
+    // 🔥 CORRECCIÓN FCR: Si estamos en modo FCR directo, no hay pregunta/opción padre
+    if (this.nivelSeleccionado?.esFCR) {
+        // Para FCR directo, las respuestas ya están en this.respuestasSubpreguntas
+        console.log('💾 FCR: Respuestas de subpreguntas ya están en respuestasSubpreguntas:', this.respuestasSubpreguntas);
+        return;
+    }
+    
+    // Para subpreguntas normales (de opciones de preguntas)
+    if (this.subpreguntasActuales.length > 0 && this.respuestaUnica && this.preguntaActualData) {
         const preguntaId = this.preguntaActualData.id;
         const opcionId = this.respuestaUnica;
         
@@ -2034,8 +2442,11 @@ extraerRespuestasRangos() {
         
         // Verificar si es una respuesta de rango
         if (respuesta && respuesta.es_pregunta_rango && respuesta.pregunta_rango_id) {
-            // Crear clave única para evitar duplicados
-            const claveUnica = `rango_${respuesta.pregunta_rango_id}_${respuesta.opcion_seleccionada_id || ''}_${respuesta.texto_libre || ''}`;
+            // 🔥 CORRECCIÓN: Crear clave única incluyendo opciones_seleccionadas
+            const opcionesKey = respuesta.opciones_seleccionadas 
+                ? JSON.stringify(respuesta.opciones_seleccionadas.sort()) 
+                : '';
+            const claveUnica = `rango_${respuesta.pregunta_rango_id}_${respuesta.opcion_seleccionada_id || ''}_${respuesta.texto_libre || ''}_${opcionesKey}`;
             
             if (!clavesProcesadas.includes(claveUnica)) {
                 clavesProcesadas.push(claveUnica);
@@ -2046,19 +2457,32 @@ extraerRespuestasRangos() {
                     pregunta_rango_id: respuesta.pregunta_rango_id
                 };
                 
-                // Procesar según la estructura real
-                if (respuesta.opcion_seleccionada_id !== undefined && respuesta.opcion_seleccionada_id !== null) {
+                // 🔥 NUEVO: Procesar opciones múltiples PRIMERO (prioridad)
+                if (respuesta.opciones_seleccionadas && Array.isArray(respuesta.opciones_seleccionadas) && respuesta.opciones_seleccionadas.length > 0) {
+                    respuestaProcesada.opciones_seleccionadas = respuesta.opciones_seleccionadas;
+                    console.log('✅ Opciones múltiples detectadas:', respuesta.opciones_seleccionadas);
+                }
+                // Procesar opción única
+                else if (respuesta.opcion_seleccionada_id !== undefined && respuesta.opcion_seleccionada_id !== null) {
                     respuestaProcesada.opcion_seleccionada = respuesta.opcion_seleccionada_id;
                 }
+                
+                // Procesar texto libre
                 if (respuesta.texto_libre && respuesta.texto_libre.trim() !== '') {
                     respuestaProcesada.texto_respuesta = respuesta.texto_libre;
                 }
+                // Procesar valor indicador
                 if (respuesta.valor !== undefined && respuesta.valor !== null) {
                     respuestaProcesada.valor_indicador = respuesta.valor;
                 }
+                // 🔥 NUEVO: También procesar si viene 'texto' (para texto_libre)
+                if (respuesta.texto && respuesta.texto.trim() !== '') {
+                    respuestaProcesada.texto_respuesta = respuesta.texto.trim();
+                }
                 
                 // Solo agregar si tiene datos válidos
-                if (respuestaProcesada.opcion_seleccionada !== undefined || 
+                if (respuestaProcesada.opciones_seleccionadas !== undefined ||
+                    respuestaProcesada.opcion_seleccionada !== undefined || 
                     respuestaProcesada.texto_respuesta !== undefined || 
                     respuestaProcesada.valor_indicador !== undefined) {
                     
@@ -2350,6 +2774,76 @@ clickIndicadorNPS(event) {
     this.respuestaIndicadorNPS = Math.round((percentage / 100) * 10);
 },
 
+// 🔥 NUEVO: Métodos para indicador 0-10 en el modal (NPS)
+iniciarArrastreIndicador(event) {
+    this.arrastrando = true;
+    this.actualizarIndicadorModal(event);
+    document.addEventListener('mousemove', this.actualizarIndicadorModal);
+    document.addEventListener('mouseup', this.detenerArrastreIndicador);
+    document.addEventListener('touchmove', this.actualizarIndicadorModal);
+    document.addEventListener('touchend', this.detenerArrastreIndicador);
+},
+
+actualizarIndicadorModal(event) {
+    if (!this.arrastrando || !this.preguntaActualData) return;
+    
+    const track = event.currentTarget || event.target?.closest('.indicador-track');
+    if (!track) return;
+    
+    const rect = track.getBoundingClientRect();
+    const clientX = event.clientX || (event.touches && event.touches[0]?.clientX);
+    const percentage = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const valor = Math.round((percentage / 100) * 10);
+    
+    // Guardar el valor en las respuestas
+    if (this.preguntaActualData.id) {
+        this.respuestas[this.preguntaActualData.id] = { valor: valor };
+        this.respuestaIndicadorValor = valor;
+    }
+    
+    this.$forceUpdate();
+},
+
+detenerArrastreIndicador() {
+    this.arrastrando = false;
+    document.removeEventListener('mousemove', this.actualizarIndicadorModal);
+    document.removeEventListener('mouseup', this.detenerArrastreIndicador);
+    document.removeEventListener('touchmove', this.actualizarIndicadorModal);
+    document.removeEventListener('touchend', this.detenerArrastreIndicador);
+},
+
+clickIndicador(event) {
+    if (!this.preguntaActualData) return;
+    
+    const track = event.currentTarget || event.target?.closest('.indicador-track');
+    if (!track) return;
+    
+    const rect = track.getBoundingClientRect();
+    const clientX = event.clientX || (event.touches && event.touches[0]?.clientX);
+    const percentage = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const valor = Math.round((percentage / 100) * 10);
+    
+    // Guardar el valor en las respuestas
+    if (this.preguntaActualData.id) {
+        this.respuestas[this.preguntaActualData.id] = { valor: valor };
+        this.respuestaIndicadorValor = valor;
+    }
+    
+    this.$forceUpdate();
+},
+
+seleccionarValorIndicador(valor) {
+    if (!this.preguntaActualData) return;
+    
+    // Guardar el valor en las respuestas
+    if (this.preguntaActualData.id) {
+        this.respuestas[this.preguntaActualData.id] = { valor: valor };
+        this.respuestaIndicadorValor = valor;
+    }
+    
+    this.$forceUpdate();
+},
+
 async iniciarConNPS() {
     // 🔥 CORRECCIÓN: Usar el nivel correcto desde la base de datos (nivel 1 para NPS)
     const valorGuardado = this.respuestaIndicadorNPS; // Guardar el valor del slider
@@ -2359,10 +2853,17 @@ async iniciarConNPS() {
     this.respuestaIndicadorNPS = valorGuardado;
     this.respuestaIndicadorValor = valorGuardado;
     
+    // 🔥 NUEVO: Establecer tipo actual como NPS
+    this.tipoCalificacionActual = 'nps';
+    
     await this.iniciarCuestionario(this.nivelSeleccionado);
     
-    // 🔥 NUEVO: Después de abrir el cuestionario, guardar la respuesta del indicador y cargar subpreguntas
-    if (this.preguntas.length > 0) {
+    // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Si viene del flujo secuencial, NO eliminar la pregunta NPS,
+    // déjala visible para que el usuario pueda verla y usar el slider en el modal
+    const vieneDelFlujoSecuencial = this.tiposCalificacionSecuencia.length > 1;
+    
+    if (this.preguntas.length > 0 && !vieneDelFlujoSecuencial) {
+        // Solo aplicar la lógica antigua si NO viene del flujo secuencial
         const preguntaNPS = this.preguntas[0]; // La primera pregunta es NPS
         
         // Guardar la respuesta del indicador NPS
@@ -2378,7 +2879,29 @@ async iniciarConNPS() {
                 // Eliminar la pregunta principal NPS del array - ya no se mostrará
                 this.preguntas.splice(0, 1);
                 console.log('🗑️ Pregunta NPS principal eliminada del flujo');
+            } else {
+                // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Verificar si hay más tipos después de NPS
+                const hayMasTiposNPS = this.tiposCalificacionSecuencia.length > 1 && 
+                                        this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+                
+                if (!hayMasTiposNPS) {
+                    console.log('🎉 NPS final sin preguntas de rango: Finalizando directamente...');
+                    await this.guardarCalificacionCompleta();
+                    this.mostrarCuestionario = false;
+                    this.mostrarAgradecimiento = true;
+                    this.iniciarTemporizadorCierre();
+                    return;
+                }
             }
+        }
+    } else if (vieneDelFlujoSecuencial && this.preguntas.length > 0) {
+        // 🔥 CORRECCIÓN: Si viene del flujo secuencial, inicializar el valor pero NO eliminar la pregunta
+        const preguntaNPS = this.preguntas[0];
+        if (preguntaNPS.tipo === 'indicador_0_10') {
+            // Inicializar el valor del indicador con el valor guardado
+            this.respuestas[preguntaNPS.id] = { valor: valorGuardado };
+            this.respuestaIndicadorValor = valorGuardado;
+            console.log('✅ NPS en flujo secuencial: Pregunta preparada con valor inicial:', valorGuardado);
         }
     }
 },
@@ -2387,59 +2910,51 @@ async iniciarConFCR(resuelto, opcion) {
     this.respuestaFCR = resuelto;
     const opcionSeleccionada = opcion;
     
+    // 🔥 NUEVO: Establecer tipo actual como FCR
+    this.tipoCalificacionActual = 'fcr';
+    
     if (resuelto) {
-        // ✅ Si selecciona "Sí" → Finalizar directo y mostrar agradecimiento
-        console.log('✅ FCR: Se resolvió, finalizando directo');
+        // ✅ Si selecciona "Sí" → Guardar respuesta y verificar si hay más tipos
+        console.log('✅ FCR: Se resolvió');
         
-        try {
-            const sedeGuardada = localStorage.getItem('sede_seleccionada');
-            const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
-            let sedeId = 1;
-            if (sedeResponse.ok) {
-                const sedeData = await sedeResponse.json();
-                sedeId = sedeData.id;
-            }
-            
-            // Guardar calificación con respuesta FCR positiva
-            const respuestas = {};
-            if (this.preguntaFCRPrincipal && opcionSeleccionada) {
-                respuestas[this.preguntaFCRPrincipal.id] = {
-                    opcion_seleccionada_id: opcionSeleccionada.id,
-                    texto_libre: ''
-                };
-            }
-            
-            const calificacionData = {
-                area_id: this.areaSeleccionada.id,
-                nivel_calificacion_id: this.preguntaFCRPrincipal?.niveles_calificacion_id || 1,
-                sede_id: sedeId,
-                respuestas: respuestas,
-                respuestas_subpreguntas: {},
-                respuestas_rangos: {}
+        // Guardar respuesta FCR
+        if (this.preguntaFCRPrincipal && opcionSeleccionada) {
+            this.respuestas[this.preguntaFCRPrincipal.id] = {
+                opcion_seleccionada_id: opcionSeleccionada.id,
+                texto_libre: ''
             };
-            
-            await fetch('/api/calificaciones/completa', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify(calificacionData)
-            });
-            
-            // Mostrar agradecimiento
+        }
+        
+        // Verificar si hay más tipos en la secuencia
+        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                            this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+        
+        if (!hayMasTipos) {
+            // Es el último tipo, finalizar
+            console.log('🎉 FCR final (último tipo con Sí): Finalizando calificación completa...');
+            await this.guardarCalificacionCompleta();
             this.mostrarCuestionario = false;
             this.mostrarAgradecimiento = true;
             this.iniciarTemporizadorCierre();
-            
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error al guardar la calificación');
+            return;
+        } else {
+            // Hay más tipos, avanzar al siguiente
+            console.log('➡️ FCR completado (Sí), avanzando al siguiente tipo...');
+            await this.avanzarAlSiguienteTipo();
+            return;
         }
         
     } else {
-        // ❌ Si selecciona "No" → Abrir modal con la pregunta del motivo
+        // ❌ Si selecciona "No" → Guardar respuesta y cargar subpreguntas
         console.log('❌ FCR: NO se resolvió, cargando pregunta del motivo');
+        
+        // Guardar respuesta FCR "No"
+        if (this.preguntaFCRPrincipal && opcionSeleccionada) {
+            this.respuestas[this.preguntaFCRPrincipal.id] = {
+                opcion_seleccionada_id: opcionSeleccionada.id,
+                texto_libre: ''
+            };
+        }
         
         // Simular nivel para cargar las subpreguntas
         this.nivelSeleccionado = { 
