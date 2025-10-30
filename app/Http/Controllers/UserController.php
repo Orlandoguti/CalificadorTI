@@ -7,6 +7,7 @@ use App\Models\Sede;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 
 class UserController extends Controller
@@ -81,12 +82,30 @@ class UserController extends Controller
     }
 }
 
-    public function update(Request $request, User $user)
+    public function update(Request $request, $usuario)
 {
     try {
+        // 🔥 CORRECCIÓN: Convertir a ID si viene como modelo o string
+        $userId = is_object($usuario) ? $usuario->id : $usuario;
+        $user = User::findOrFail($userId);
+        
+        \Log::info('🔄 Actualizando usuario:', [
+            'user_id' => $user->id,
+            'email_actual' => $user->email,
+            'email_nuevo' => $request->email,
+            'request_id' => $request->get('id'),
+            'param_usuario' => $usuario
+        ]);
+        
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id)
+            ],
             'password' => 'nullable|string|min:8',
             'role' => 'required|in:admin,gestor,user',
             'sede_id' => 'nullable|exists:sedes,id',

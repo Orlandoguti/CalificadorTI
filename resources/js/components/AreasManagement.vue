@@ -1160,6 +1160,7 @@ export default {
 
 /* CHECKBOX */
 .checkbox-container {
+    justify-content: center;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -1201,6 +1202,7 @@ export default {
 }
 
 .modal-actions {
+    justify-self: center;
     display: flex;
     gap: 1rem;
     justify-content: flex-end;

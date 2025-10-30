@@ -13,6 +13,7 @@
     "dependencies": {
         "@vitejs/plugin-vue": "^6.0.1",
         "chart.js": "^4.5.0",
+        "sweetalert2": "^11.26.3",
         "vue-router": "^4.5.1"
     }
 }

@@ -72,10 +72,10 @@
                                     {{ getTipoText(pregunta.tipo) }}
                                 </span>
                                 <!-- Badge de estado Activa/Inactiva -->
-                                <span :class="['status-badge', pregunta.is_active ? 'active' : 'inactive']">
-                                    <i :class="pregunta.is_active ? 'fas fa-check-circle' : 'fas fa-pause-circle'"></i>
-                                    {{ pregunta.is_active ? 'Activa' : 'Inactiva' }}
-                                </span>
+                            <span :class="['status-badge', pregunta.is_active ? 'active' : 'inactive']">
+                                <i :class="pregunta.is_active ? 'fas fa-check-circle' : 'fas fa-pause-circle'"></i>
+                                {{ pregunta.is_active ? 'Activa' : 'Inactiva' }}
+                            </span>
                             </div>
                         </div>
                     </div>
@@ -89,7 +89,7 @@
                             <div class="meta-item">
                                 <i class="fas fa-layer-group"></i>
                                 <span>{{ getNivelName(pregunta.niveles_calificacion_id) }}</span>
-                            </div>                            
+                            </div>
                         </div>
 
                         <!-- 🔥 NUEVO: Badges de áreas participantes (agrupadas) -->
@@ -100,7 +100,7 @@
                                 <span v-for="(area, index) in uniqueAreas(pregunta.areas_participantes)" :key="`area-${index}`" class="participante-badge area-badge">
                                     <i class="fas fa-building"></i>
                                     {{ area.nombre }}
-                                </span>
+                            </span>
                             </div>
                         </div>
 
@@ -111,7 +111,7 @@
                                 <span v-for="(sede, index) in pregunta.sedes_participantes" :key="`sede-${sede.id}`" class="participante-badge sede-badge">
                                     <i class="fas fa-map-marker-alt"></i>
                                     {{ sede.nombre }}
-                                </span>
+                            </span>
                             </div>
                         </div>
 
@@ -266,11 +266,19 @@
                                     <i class="fas fa-layer-group"></i>
                                     Nivel de Calificación *
                                 </label>
-                                <select v-model="preguntaForm.niveles_calificacion_id" class="form-select" :required="!tipoSeleccionado || (tipoSeleccionado.codigo !== 'nps' && tipoSeleccionado.codigo !== 'fcr')">
+                                <select v-model="preguntaForm.niveles_calificacion_id" class="form-select" :required="!tipoSeleccionado || (tipoSeleccionado.codigo !== 'nps' && tipoSeleccionado.codigo !== 'fcr')" :disabled="esEdicionPregunta || todosLosNivelesCSATUsados">
                                     <option value="">Seleccionar nivel</option>
+                                    <!-- 🔥 NUEVO: Usar nivelesDisponiblesCSAT para CSAT, todos para otros tipos -->
+                                    <template v-if="tipoSeleccionado && tipoSeleccionado.codigo === 'csat'">
+                                        <option v-for="nivel in nivelesDisponiblesCSAT" :key="nivel.id" :value="nivel.id">
+                                            {{ nivel.nombre }}
+                                        </option>
+                                    </template>
+                                    <template v-else>
                                     <option v-for="nivel in nivelesCalificacion" :key="nivel.id" :value="nivel.id">
                                         {{ nivel.nombre }}
                                     </option>
+                                    </template>
                                 </select>
                             </div>
 
@@ -302,6 +310,11 @@
                                     </option>
                                 </select>
                             </div>
+                        </div>
+                                <!-- 🔥 NUEVO: Mensaje informativo cuando todos los niveles están usados -->
+                                <div v-if="todosLosNivelesCSATUsados && !esEdicionPregunta" class="alert-info" style="margin-top: 0.5rem; padding: 0.75rem; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; color: #92400e;">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    Todos los niveles de calificación CSAT ya tienen preguntas asignadas. No se pueden crear más preguntas CSAT.
                         </div>
 
                         <!-- 🔥 NUEVO: Selección múltiple de Áreas -->
@@ -384,7 +397,7 @@
                                     </div>
                                     <div v-if="esPreguntaFCR" class="opcion-fcr-badge">
                                         <i class="fas fa-lock"></i>
-                                    </div>
+                                </div>
                                 </div>
                                 <div v-if="!esPreguntaFCR" class="btn-agregar-wrapper">
                                     <button 
@@ -393,8 +406,8 @@
                                         class="btn btn-outline btn-agregar"
                                         title="Agregar Opción"
                                     >
-                                        <i class="fas fa-plus"></i> Agregar Opción
-                                    </button>
+                                    <i class="fas fa-plus"></i> Agregar Opción
+                                </button>
                                 </div>
                             </div>
                             <!-- 🔥 NUEVA SECCIÓN: Subpreguntas para FCR -->
@@ -435,12 +448,28 @@
                                                         <strong>Opciones:</strong> {{ subpregunta.opciones.join(', ') }}
                                                     </div>
                                                 </div>
-                                                <div style="display: flex; gap: 0.25rem;">
-                                                    <button type="button" @click.stop="editarSubpreguntaFCR(index, subIndex)" class="btn-icon" title="Editar">
-                                                        <i class="fas fa-edit"></i>
+                                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                    <button 
+                                                        type="button" 
+                                                        @click.stop="editarSubpreguntaFCR(index, subIndex)" 
+                                                        class="btn-icon" 
+                                                        title="Editar subpregunta"
+                                                        style="background: #3b82f6; color: white; padding: 0.5rem 0.75rem; border-radius: 6px; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; transition: all 0.2s ease;"
+                                                        @mouseover="$event.target.style.background='#2563eb'"
+                                                        @mouseleave="$event.target.style.background='#3b82f6'"
+                                                    >
+                                                        <i class="fas fa-edit" style="font-size: 14px;"></i>
                                                     </button>
-                                                    <button type="button" @click.stop="eliminarSubpreguntaFCR(index, subIndex)" class="btn-icon danger" title="Eliminar">
-                                                        <i class="fas fa-trash"></i>
+                                                    <button 
+                                                        type="button" 
+                                                        @click.stop="eliminarSubpreguntaFCR(index, subIndex)" 
+                                                        class="btn-icon danger" 
+                                                        title="Eliminar subpregunta"
+                                                        style="background: #ef4444; color: white; padding: 0.5rem 0.75rem; border-radius: 6px; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; transition: all 0.2s ease;"
+                                                        @mouseover="$event.target.style.background='#dc2626'"
+                                                        @mouseleave="$event.target.style.background='#ef4444'"
+                                                    >
+                                                        <i class="fas fa-trash" style="font-size: 14px;"></i>
                                                     </button>
                                                 </div>
                                             </div>
@@ -490,16 +519,17 @@
                                             <span class="rango-valores-badge" style="background: #667eea; color: white; padding: 0.4rem 0.8rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem;">
                                                 {{ rango.inicio }}-{{ rango.fin }}
                                             </span>
-                                        </div>
+                                    </div>
                                     </div>
                                     <div class="rango-toggle" style="display: flex; align-items: center; gap: 1rem;">
                                         <button 
                                             type="button" 
                                             @click="eliminarRango(index)"
-                                            class="btn-icon danger full-width"
+                                            class="btn btn-danger btn-sm"
+                                            style="min-width: 100px; padding: 0.5rem 1rem;"
                                             title="Eliminar rango"
                                         >
-                                            <i class="fas fa-trash"></i>
+                                            <i class="fas fa-trash"></i> Eliminar Rango
                                         </button>
                                         <label class="toggle-label">
                                             <input 
@@ -572,12 +602,12 @@
                                                 </button>
                                                 <div v-if="esOpcionOtro(opcion.texto)" class="opcion-otro-badge">
                                                     <i class="fas fa-comment"></i> Campo de texto libre
-                                                </div>
+                                            </div>
                                             </div>
                                             <div class="btn-agregar-wrapper">
                                                 <button type="button" @click="agregarOpcionRango(index)" class="btn btn-outline btn-agregar">
-                                                    <i class="fas fa-plus"></i> Agregar Opción
-                                                </button>
+                                                <i class="fas fa-plus"></i> Agregar Opción
+                                            </button>
                                             </div>
                                         </div>
                                     </div>
@@ -878,6 +908,9 @@
 </template>
 
 <script>
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
+
 export default {
     name: 'PreguntasManagement',
     data() {
@@ -919,13 +952,16 @@ export default {
                 inicio: 0,
                 fin: 6,
                 activo: true,
-                pregunta_texto: '',
-                tipo: 'opcion_unica',
-                opciones: [{ texto: '' }, { texto: '' }]
+                    pregunta_texto: '',
+                    tipo: 'opcion_unica',
+                    opciones: [{ texto: '' }, { texto: '' }]
             },
             mostrandoConfiguracionRangos: false,
             // 🔥 NUEVO: Bandera para evitar loops en el watcher de opciones
             reorganizandoOpciones: false,
+
+            // 🔥 NUEVO: Variable para rastrear el tipo anterior de pregunta
+            tipoAnterior: null,
 
             // Formularios
             preguntaForm: {
@@ -982,6 +1018,48 @@ export default {
         // 🔥 NUEVO: Contar rangos activos
         totalRangosActivos() {
             return this.configuracionRangos.filter(rango => rango.activo).length;
+        },
+        
+        // 🔥 NUEVO: Obtener niveles disponibles para CSAT (que no estén ya usados)
+        nivelesDisponiblesCSAT() {
+            if (!this.tipoSeleccionado || this.tipoSeleccionado.codigo !== 'csat') {
+                return this.nivelesCalificacion;
+            }
+            
+            // Obtener IDs de niveles que ya tienen preguntas CSAT activas
+            const nivelesUsados = this.preguntas
+                .filter(p => p.tipo_pregunta === 'csat' && p.is_active && p.niveles_calificacion_id)
+                .map(p => p.niveles_calificacion_id);
+            
+            // Filtrar niveles disponibles (solo CSAT usa niveles 1-4)
+            return this.nivelesCalificacion.filter(nivel => {
+                // Solo incluir niveles 1-4 para CSAT
+                if (nivel.id < 1 || nivel.id > 4) {
+                    return false;
+                }
+                // Si estamos editando, permitir el nivel actual incluso si está "usado"
+                if (this.esEdicionPregunta && this.preguntaForm.niveles_calificacion_id == nivel.id) {
+                    return true;
+                }
+                // Excluir niveles ya usados
+                return !nivelesUsados.includes(nivel.id);
+            });
+        },
+        
+        // 🔥 NUEVO: Verificar si todos los niveles CSAT están usados
+        todosLosNivelesCSATUsados() {
+            if (!this.tipoSeleccionado || this.tipoSeleccionado.codigo !== 'csat') {
+                return false;
+            }
+            
+            // Obtener IDs de niveles que ya tienen preguntas CSAT activas
+            const nivelesUsados = this.preguntas
+                .filter(p => p.tipo_pregunta === 'csat' && p.is_active && p.niveles_calificacion_id)
+                .map(p => p.niveles_calificacion_id);
+            
+            // CSAT tiene 4 niveles (1-4)
+            const nivelesCSAT = [1, 2, 3, 4];
+            return nivelesCSAT.every(nivelId => nivelesUsados.includes(nivelId));
         },
         
         // 🔥 NUEVO: Filtrar tipos de pregunta disponibles según el tipo de calificación
@@ -1164,11 +1242,23 @@ export default {
                     }
                 } else {
                     console.error('❌ Error cargando preguntas:', response.status);
-                    alert('Error al cargar las preguntas');
+                    await Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Error al cargar las preguntas',
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#ef4444'
+                    });
                 }
             } catch (error) {
                 console.error('❌ Error loading preguntas:', error);
-                alert('Error al cargar las preguntas: ' + error.message);
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al cargar las preguntas: ' + error.message,
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#ef4444'
+                });
             } finally {
                 this.loadingPreguntas = false;
             }
@@ -1475,6 +1565,8 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 opciones: opcionesDefault,
                 is_active: true
             };
+            // Inicializar tipoAnterior cuando se crea nueva pregunta
+            this.tipoAnterior = tipoPreguntaDefault;
             this.areasSeleccionadas = [];
             this.sedesSeleccionadas = [];
             this.mostrarModalPregunta = true;
@@ -1518,8 +1610,9 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                         console.log('📝 Procesando opción:', op.opcion);
                         console.log('📝 Subpreguntas de opción:', op.subpreguntas);
                         
+                        // 🔥 CORRECCIÓN: Asegurar que siempre haya un array de subpreguntas
                         let subpreguntas = [];
-                        if (op.subpreguntas && Array.isArray(op.subpreguntas)) {
+                        if (op.subpreguntas && Array.isArray(op.subpreguntas) && op.subpreguntas.length > 0) {
                             console.log('✅ Subpreguntas encontradas, cantidad:', op.subpreguntas.length);
                             subpreguntas = op.subpreguntas.map(sub => {
                                 let opcionesArray = [];
@@ -1536,7 +1629,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                                     }
                                 }
                                 return {
-                                    id: sub.id || null,
+                                    id: sub.id || null, // 🔥 PRESERVAR el ID de la subpregunta
                                     pregunta_texto: sub.pregunta_texto || '',
                                     tipo: sub.tipo || 'opcion_unica',
                                     opciones: opcionesArray
@@ -1544,10 +1637,11 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                             });
                         }
                         
+                        // 🔥 CORRECCIÓN: Inicializar siempre como array, incluso si está vacío
                         const result = {
                             texto: op.opcion,
                             id: op.id,
-                            subpreguntas: subpreguntas
+                            subpreguntas: subpreguntas || [] // Asegurar array vacío si no hay subpreguntas
                         };
                         
                         console.log('📋 Opción resultante:', result);
@@ -1555,15 +1649,18 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                     });
                     console.log('✅ Opciones FCR procesadas:', opciones);
                 } else {
-                    opciones = pregunta.opciones.map(op => ({ texto: op.opcion }));
+                opciones = pregunta.opciones.map(op => ({ texto: op.opcion }));
                 }
             }
             if (opciones.length === 0 && (pregunta.tipo === 'opcion_unica' || pregunta.tipo === 'opcion_multiple')) {
                 opciones = [{ texto: '' }, { texto: '' }];
             }
 
-            // 🔥 NUEVO: Si es opcion_unica_texto_libre, asegurar que "Otro" esté al final
-            if (pregunta.tipo === 'opcion_unica_texto_libre' && opciones.length > 0) {
+            // 🔥 CORRECCIÓN: Si NO es opcion_unica_texto_libre, filtrar "Otro" aunque exista en BD
+            if (pregunta.tipo !== 'opcion_unica_texto_libre') {
+                opciones = opciones.filter(op => !this.esOpcionOtro(op.texto));
+            } else {
+                // Si SÍ es opcion_unica_texto_libre, asegurar que "Otro" esté al final
                 const indiceOtro = opciones.findIndex(op => 
                     this.esOpcionOtro(op.texto)
                 );
@@ -1590,6 +1687,9 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 areas_participantes: pregunta.areas_participantes || [],
                 sede_participante: pregunta.sede_participante || null
             };
+            
+            // Inicializar tipoAnterior al cargar la pregunta para edición
+            this.tipoAnterior = pregunta.tipo;
             
             console.log('🔍 Pregunta FCR cargada para edición:', this.preguntaForm);
             console.log('📋 Opciones con subpreguntas:', this.preguntaForm.opciones);
@@ -1630,7 +1730,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 } else {
                     // Si no viene en la lista de preguntas, cargar directamente
                     const response = await fetch(`/api/preguntas?area_id=todas&nivel_id=todas`);
-                    if (response.ok) {
+                if (response.ok) {
                         const todasLasPreguntas = await response.json();
                         const pregunta = todasLasPreguntas.find(p => p.id === preguntaId);
                         if (pregunta && pregunta.subpreguntas_rango) {
@@ -1657,7 +1757,15 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                                 opciones = [];
                             }
                         } else if (Array.isArray(sp.opciones)) {
-                            opciones = sp.opciones.map(texto => ({ texto }));
+                            // Las opciones pueden venir como strings o como objetos
+                            opciones = sp.opciones.map(op => {
+                                if (typeof op === 'string') {
+                                    return { texto: op };
+                                } else if (op && typeof op === 'object') {
+                                    return { texto: op.texto || op };
+                                }
+                                return { texto: String(op) };
+                            });
                         }
                     }
                     
@@ -1688,11 +1796,30 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
 
         // 🔥 NUEVO: Cambiar tipo de pregunta
         cambiarTipoPregunta() {
+            // Guardar el tipo anterior para detectar cambios
+            const tipoAnterior = this.tipoAnterior || null;
+            this.tipoAnterior = this.preguntaForm.tipo;
+            
             // Validar si el tipo actual está disponible según el tipo de calificación
             const tiposDisponibles = this.tiposPreguntaDisponibles.map(t => t.value);
             if (!tiposDisponibles.includes(this.preguntaForm.tipo)) {
                 // Si el tipo actual no está disponible, cambiar al primer tipo disponible
                 this.preguntaForm.tipo = tiposDisponibles[0];
+            }
+            
+            // 🔥 CORRECCIÓN: Si se cambia de opcion_unica_texto_libre a otro tipo, eliminar "Otro - especifique"
+            if (tipoAnterior === 'opcion_unica_texto_libre' && this.preguntaForm.tipo !== 'opcion_unica_texto_libre') {
+                // Filtrar y eliminar la opción "Otro"
+                this.preguntaForm.opciones = this.preguntaForm.opciones.filter(op => 
+                    !this.esOpcionOtro(op.texto)
+                );
+                
+                // Asegurar mínimo 2 opciones
+                if (this.preguntaForm.opciones.length < 2) {
+                    this.preguntaForm.opciones.push(
+                        ...Array(2 - this.preguntaForm.opciones.length).fill(null).map(() => ({ texto: '' }))
+                    );
+                }
             }
             
             if (!this.mostrarOpcionesPregunta) {
@@ -1746,7 +1873,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 }
                 
                 // Agregar la nueva opción
-                this.preguntaForm.opciones.push({ texto: '' });
+            this.preguntaForm.opciones.push({ texto: '' });
                 
                 // Si había opción "Otro", agregarla al final
                 if (opcionOtro) {
@@ -1766,7 +1893,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 
                 if (!esOtraOpcionOtro) {
                     // Solo eliminar si NO es "Otro"
-                    this.preguntaForm.opciones.splice(index, 1);
+                this.preguntaForm.opciones.splice(index, 1);
                     
                     // 🔥 NUEVO: Si es tipo opcion_unica_texto_libre, asegurar que "Otro" esté al final
                     if (this.preguntaForm.tipo === 'opcion_unica_texto_libre') {
@@ -1785,27 +1912,96 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
         },
 
         // 🔥 NUEVO: Validar formulario
-        validarFormulario() {
+        async validarFormulario() {
             if (!this.preguntaForm.pregunta.trim()) {
-                alert('Por favor ingresa la pregunta');
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor ingresa la pregunta',
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#f59e0b'
+                });
                 return false;
             }
+            
+            // 🔥 NUEVO: Validar que no todos los niveles CSAT estén usados
+            if (this.tipoSeleccionado && this.tipoSeleccionado.codigo === 'csat' && !this.esEdicionPregunta) {
+                if (this.todosLosNivelesCSATUsados) {
+                    await Swal.fire({
+                        icon: 'info',
+                        title: 'Niveles completos',
+                        text: 'No se pueden crear más preguntas CSAT. Todos los niveles de calificación ya tienen preguntas asignadas (Muy Insatisfecho, Insatisfecho, Satisfecho, Muy Satisfecho).',
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#4f46e5'
+                    });
+                return false;
+            }
+                
+                if (!this.preguntaForm.niveles_calificacion_id) {
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: 'Campo requerido',
+                        text: 'Por favor selecciona un nivel de calificación',
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#f59e0b'
+                    });
+                return false;
+            }
+                
+                // Verificar que el nivel seleccionado esté disponible
+                const nivelDisponible = this.nivelesDisponiblesCSAT.some(n => n.id == this.preguntaForm.niveles_calificacion_id);
+                if (!nivelDisponible) {
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: 'Nivel no disponible',
+                        text: 'El nivel de calificación seleccionado ya tiene una pregunta CSAT asignada. Por favor selecciona otro nivel.',
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#f59e0b'
+                    });
+                    return false;
+                }
+            }
+            
             // 🔥 NUEVO: Solo validar áreas y sedes si NO es pregunta genérica (CSAT/NPS/FCR)
             if (!this.tipoSeleccionado && (!this.areasSeleccionadas || this.areasSeleccionadas.length === 0)) {
-                alert('Por favor selecciona al menos un área');
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor selecciona al menos un área',
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#f59e0b'
+                });
                 return false;
             }
             if (!this.tipoSeleccionado && (!this.sedesSeleccionadas || this.sedesSeleccionadas.length === 0)) {
-                alert('Por favor selecciona al menos una sede');
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor selecciona al menos una sede',
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#f59e0b'
+                });
                 return false;
             }
             // 🔥 CORREGIDO: No validar nivel de calificación para FCR y NPS
             if (!this.esPreguntaFCR && !(this.tipoSeleccionado?.codigo === 'nps') && !this.preguntaForm.niveles_calificacion_id) {
-                alert('Por favor selecciona un nivel de calificación');
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor selecciona un nivel de calificación',
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#f59e0b'
+                });
                 return false;
             }
             if (!this.preguntaForm.tipo) {
-                alert('Por favor selecciona un tipo de pregunta');
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor selecciona un tipo de pregunta',
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#f59e0b'
+                });
                 return false;
             }
 
@@ -1815,7 +2011,13 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 this.preguntaForm.tipo !== 'opcion_unica_texto_libre') {
                 const opcionesValidas = this.preguntaForm.opciones.filter(op => op.texto.trim() !== '');
                 if (opcionesValidas.length < 2) {
-                    alert('Debe haber al menos 2 opciones válidas');
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: 'Opciones requeridas',
+                        text: 'Debe haber al menos 2 opciones válidas',
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#f59e0b'
+                    });
                     return false;
                 }
             }
@@ -1824,7 +2026,13 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             if (this.preguntaForm.tipo === 'opcion_unica_texto_libre') {
                 const opcionesValidas = this.preguntaForm.opciones.filter(op => op.texto && op.texto.trim() !== '');
                 if (opcionesValidas.length < 2) {
-                    alert('Debe haber al menos 2 opciones válidas');
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: 'Opciones requeridas',
+                        text: 'Debe haber al menos 2 opciones válidas',
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#f59e0b'
+                    });
                     return false;
                 }
             }
@@ -1848,10 +2056,21 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                     niveles_calificacion_id: this.preguntaForm.niveles_calificacion_id,
                     is_active: this.preguntaForm.is_active,
                     opciones: this.mostrarOpcionesPregunta 
-                        ? this.preguntaForm.opciones.map(op => op.texto).filter(texto => texto.trim())
+                        ? this.preguntaForm.opciones
+                            .map(op => op.texto)
+                            .filter(texto => texto && texto.trim() !== '')
                         : [],
-                    // Solo enviar configuracion_rangos si es pregunta indicador Y tiene rangos activos
-                    configuracion_rangos: this.esPreguntaIndicador && this.totalRangosActivos > 0 ? this.configuracionRangos : [],
+                    // Solo enviar configuracion_rangos si es pregunta indicador (incluir todos, activos e inactivos para edición)
+                    // 🔥 CORRECCIÓN: Enviar todos los rangos, no solo los activos, para que se actualicen correctamente
+                    configuracion_rangos: this.esPreguntaIndicador ? this.configuracionRangos.map(rango => ({
+                        id: rango.id || null, // 🔥 NUEVO: Incluir ID si existe (para edición)
+                        inicio: rango.inicio,
+                        fin: rango.fin,
+                        activo: rango.activo,
+                        pregunta_texto: rango.pregunta_texto,
+                        tipo: rango.tipo,
+                        opciones: rango.opciones || []
+                    })) : [],
                     // 🔥 NUEVO: Enviar subpreguntas FCR si existen
                     subpreguntas_fcr: this.esPreguntaFCR ? this.preguntaForm.opciones.map((opcion, index) => {
                         const subpreguntas = (opcion.subpreguntas || []).map(sub => {
@@ -1886,6 +2105,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                     }) : []
                 };
                 
+                console.log('📤 Opciones antes de enviar:', datos.opciones);
                 console.log('📤 Datos a enviar:', JSON.stringify(datos, null, 2));
                 console.log('🔍 Configuración de rangos:', this.configuracionRangos);
                 console.log('🔍 Es pregunta indicador:', this.esPreguntaIndicador);
@@ -1944,9 +2164,14 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 console.log('✅ Pregunta guardada:', result);
                 
                 await this.cargarPreguntas();
+                
+                // 🔥 CORRECCIÓN: Guardar el estado de edición antes de cerrar el modal
+                const fueEdicion = this.esEdicionPregunta;
+                
                 this.cerrarModalPregunta();
-                this.mostrarMensaje(
-                    `Pregunta ${this.esEdicionPregunta ? 'actualizada' : 'creada'} correctamente`,
+                
+                await this.mostrarMensaje(
+                    `Pregunta ${fueEdicion ? 'actualizada' : 'creada'} correctamente`,
                     'success'
                 );
 
@@ -2269,17 +2494,21 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
 
         editarSubpreguntaFCR(indiceOpcion, indiceSubpregunta) {
             console.log('🔧 Iniciando edición de subpregunta - Opción:', indiceOpcion, 'Subpregunta:', indiceSubpregunta);
+            console.log('📋 preguntaForm.opciones:', this.preguntaForm.opciones);
             
             // Validar que los índices sean válidos
             if (!this.preguntaForm.opciones || !this.preguntaForm.opciones[indiceOpcion]) {
-                console.error('❌ Opción no encontrada:', indiceOpcion);
+                console.error('❌ Opción no encontrada:', indiceOpcion, 'Total opciones:', this.preguntaForm.opciones?.length);
                 this.mostrarMensaje('Error: No se encontró la opción', 'error');
                 return;
             }
             
             const opcion = this.preguntaForm.opciones[indiceOpcion];
+            console.log('📋 Opción encontrada:', opcion);
+            console.log('📋 subpreguntas de opción:', opcion.subpreguntas);
+            
             if (!opcion.subpreguntas || !opcion.subpreguntas[indiceSubpregunta]) {
-                console.error('❌ Subpregunta no encontrada:', indiceSubpregunta);
+                console.error('❌ Subpregunta no encontrada:', indiceSubpregunta, 'Total subpreguntas:', opcion.subpreguntas?.length);
                 this.mostrarMensaje('Error: No se encontró la subpregunta', 'error');
                 return;
             }
@@ -2341,13 +2570,72 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             
             console.log('✅ Formulario de subpregunta preparado:', this.subpreguntaForm);
             console.log('✅ Estado subpreguntaFCREditando:', this.subpreguntaFCREditando);
+            console.log('✅ indiceOpcionFCRActual:', this.indiceOpcionFCRActual);
+            console.log('✅ Abriendo modal...');
             this.mostrarModalSubpreguntaFCR = true;
+            console.log('✅ mostrarModalSubpreguntaFCR:', this.mostrarModalSubpreguntaFCR);
+            
+            // 🔥 CORRECCIÓN: Forzar reactividad
+            this.$nextTick(() => {
+                console.log('✅ Modal debería estar visible ahora');
+            });
         },
 
-        eliminarSubpreguntaFCR(indiceOpcion, indiceSubpregunta) {
-            if (confirm('¿Estás seguro de eliminar esta subpregunta?')) {
-                this.preguntaForm.opciones[indiceOpcion].subpreguntas.splice(indiceSubpregunta, 1);
-                this.mostrarMensaje('Subpregunta eliminada', 'success');
+        async eliminarSubpreguntaFCR(indiceOpcion, indiceSubpregunta) {
+            // Validar índices
+            if (!this.preguntaForm.opciones || !this.preguntaForm.opciones[indiceOpcion]) {
+                this.mostrarMensaje('Error: No se encontró la opción', 'error');
+                return;
+            }
+            
+            const opcion = this.preguntaForm.opciones[indiceOpcion];
+            if (!opcion.subpreguntas || !opcion.subpreguntas[indiceSubpregunta]) {
+                this.mostrarMensaje('Error: No se encontró la subpregunta', 'error');
+                return;
+            }
+            
+            const subpregunta = opcion.subpreguntas[indiceSubpregunta];
+            
+            // 🔥 CORRECCIÓN: Usar SweetAlert2 en lugar de confirm()
+            const result = await Swal.fire({
+                title: '¿Eliminar subpregunta?',
+                text: `¿Estás seguro de eliminar la subpregunta "${subpregunta.pregunta_texto}"?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
+            });
+            
+            if (result.isConfirmed) {
+                // Si la subpregunta tiene ID, intentar eliminarla del backend
+                if (subpregunta.id) {
+                    try {
+                        const response = await fetch(`/api/subpreguntas/${subpregunta.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            }
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Error al eliminar la subpregunta del servidor');
+                        }
+                    } catch (error) {
+                        console.error('Error eliminando subpregunta del servidor:', error);
+                        // Continuar con la eliminación local aunque falle el backend
+                    }
+                }
+                
+                // Eliminar del array local
+                opcion.subpreguntas.splice(indiceSubpregunta, 1);
+                
+                // 🔥 CORRECCIÓN: Forzar reactividad
+                this.$forceUpdate();
+                
+                this.mostrarMensaje('Subpregunta eliminada correctamente', 'success');
             }
         },
 
@@ -2392,14 +2680,23 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                     subpreguntaData.id = this.preguntaForm.opciones[indiceOpcion].subpreguntas[indiceSubpregunta].id;
                 }
                 
+                // 🔥 CORRECCIÓN Vue 3: Asignación directa (reactividad automática)
                 this.preguntaForm.opciones[indiceOpcion].subpreguntas[indiceSubpregunta] = subpreguntaData;
+                
                 console.log('✅ Subpregunta actualizada:', this.preguntaForm.opciones[indiceOpcion].subpreguntas[indiceSubpregunta]);
-                this.mostrarMensaje('Subpregunta actualizada', 'success');
+                this.mostrarMensaje('Subpregunta actualizada correctamente', 'success');
             } else {
                 // Agregar nueva subpregunta
                 console.log('➕ Agregando nueva subpregunta');
+                
+                // 🔥 CORRECCIÓN Vue 3: Asegurar que el array de subpreguntas existe
+                if (!this.preguntaForm.opciones[this.indiceOpcionFCRActual].subpreguntas) {
+                    this.preguntaForm.opciones[this.indiceOpcionFCRActual].subpreguntas = [];
+                }
+                
                 this.preguntaForm.opciones[this.indiceOpcionFCRActual].subpreguntas.push(subpreguntaData);
-                this.mostrarMensaje('Subpregunta agregada', 'success');
+                
+                this.mostrarMensaje('Subpregunta agregada correctamente', 'success');
             }
 
             this.cerrarModalSubpreguntaFCR();
@@ -2424,7 +2721,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
         },
 
         // 🔥 NUEVO: Agregar nuevo rango
-        agregarRango() {
+        async agregarRango() {
             // 🔥 CORRECCIÓN: Calcular el siguiente rango disponible
             let siguienteInicio = 0;
             let siguienteFin = 10;
@@ -2456,7 +2753,13 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                             siguienteFin = 10;
                         } else {
                             // Ya no hay más espacio (cubierto hasta 10)
-                            alert('Ya se han configurado todos los rangos posibles (0-10)');
+                            await Swal.fire({
+                        icon: 'info',
+                        title: 'Rangos completos',
+                        text: 'Ya se han configurado todos los rangos posibles (0-10)',
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#4f46e5'
+                    });
                             return;
                         }
                     }
@@ -2480,11 +2783,14 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
 
         // 🔥 NUEVO: Eliminar rango
         eliminarRango(index) {
-            this.configuracionRangos.splice(index, 1);
+            if (confirm('¿Estás seguro de eliminar este rango? Esta acción no se puede deshacer.')) {
+                this.configuracionRangos.splice(index, 1);
+                console.log(`🗑️ Rango eliminado. Rangos restantes: ${this.configuracionRangos.length}`);
+            }
         },
 
         // 🔥 CORRECCIÓN: Validar rango mejorado (evitar solapamientos y mantener 0-10)
-        validarRango(index) {
+        async validarRango(index) {
             const rango = this.configuracionRangos[index];
             
             // Validar que inicio <= fin
@@ -2508,7 +2814,13 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 if ((rango.inicio >= otroRango.inicio && rango.inicio <= otroRango.fin) ||
                     (rango.fin >= otroRango.inicio && rango.fin <= otroRango.fin) ||
                     (rango.inicio <= otroRango.inicio && rango.fin >= otroRango.fin)) {
-                    alert(`Este rango se solapa con el rango ${otroRango.inicio}-${otroRango.fin}. Por favor ajusta los valores.`);
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: 'Rango solapado',
+                        text: `Este rango se solapa con el rango ${otroRango.inicio}-${otroRango.fin}. Por favor ajusta los valores.`,
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#f59e0b'
+                    });
                     // Ajustar automáticamente: usar el siguiente valor disponible
                     if (rango.inicio <= otroRango.fin) {
                         rango.inicio = otroRango.fin + 1;
@@ -2823,8 +3135,20 @@ async procesarEliminacionForzada(preguntaId) {
             };
         },
 
-        mostrarMensaje(mensaje, tipo) {
-            alert(`${tipo === 'success' ? '✅' : '❌'} ${mensaje}`);
+        async mostrarMensaje(mensaje, tipo) {
+            const icon = tipo === 'success' ? 'success' : tipo === 'error' ? 'error' : 'info';
+            const title = tipo === 'success' ? 'Éxito' : tipo === 'error' ? 'Error' : 'Información';
+            const confirmButtonColor = tipo === 'success' ? '#22c55e' : tipo === 'error' ? '#ef4444' : '#4f46e5';
+            
+            await Swal.fire({
+                icon: icon,
+                title: title,
+                text: mensaje,
+                confirmButtonText: 'Aceptar',
+                confirmButtonColor: confirmButtonColor,
+                timer: tipo === 'success' ? 3000 : null,
+                timerProgressBar: tipo === 'success'
+            });
         }
     }   
 }
@@ -2911,6 +3235,31 @@ async procesarEliminacionForzada(preguntaId) {
 
 .btn-secondary:hover {
     background: #4b5563;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
 }
 
 .btn-outline {
@@ -3691,6 +4040,13 @@ async procesarEliminacionForzada(preguntaId) {
     justify-content: flex-end;
     padding-top: 1.5rem;
     border-top: 1px solid #e5e7eb;
+    margin-top: 1.5rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
     margin-top: 1.5rem;
 }
 

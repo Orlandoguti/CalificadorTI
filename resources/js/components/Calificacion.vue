@@ -117,11 +117,16 @@
                                         <div class="progreso-fill" :style="{ width: porcentajeProgreso + '%' }"></div>
                                     </div>
                                     <span class="progreso-texto">
-                                        Pregunta {{ preguntaActual + 1 }} de {{ preguntas.length }}
+                                        <template v-if="modoSubpreguntas">
+                                            Subpregunta {{ subpreguntaIndex + 1 }} de {{ subpreguntasActuales.length }}
+                                        </template>
+                                        <template v-else>
+                                            Pregunta {{ preguntaActual + 1 }} de {{ preguntas.length }}
+                                        </template>
                                     </span>
                                 </div>
                                 <div class="nivel-info">
-                                    <span class="nivel-badge">{{ nivelSeleccionado.nombre }}</span>
+                                    <span class="nivel-badge">{{ nivelSeleccionado ? nivelSeleccionado.nombre : 'Subpregunta' }}</span>
                                 </div>
                             </div>
                         </div>
@@ -279,24 +284,17 @@
 <!-- VISTA SUBPREGUNTAS -->
 <template v-else>
     <div class="subpregunta-actual">
-        <div class="progreso-subpreguntas">
-            <div class="progreso-bar">
-                <div class="progreso-fill" 
-                     :style="{ width: ((subpreguntaIndex + 1) / subpreguntasActuales.length * 100) + '%' }">
-                </div>
-            </div>
-            <span class="progreso-texto">
-                Subpregunta {{ subpreguntaIndex + 1 }} de {{ subpreguntasActuales.length }}
-            </span>
-        </div>
-
-        <div class="subpregunta-header">
+        <div v-if="subpreguntaActual" class="subpregunta-header">
             <h3 class="subpregunta-texto">{{ subpreguntaActual.pregunta_texto }}</h3>
             <span class="tipo-subpregunta">{{ getTipoTexto(subpreguntaActual.tipo) }}</span>
         </div>
+        <div v-else class="cargando-subpregunta">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Cargando subpreguntas...</p>
+        </div>
 
         <!-- SUBPREGUNTA: Opción Múltiple -->
-        <div v-if="subpreguntaActual.tipo === 'opcion_multiple'" class="opciones-container">
+        <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'opcion_multiple'" class="opciones-container">
             <div v-for="(opcion, index) in subpreguntaActual.opciones" 
                  :key="index"
                  class="opcion-item"
@@ -314,7 +312,7 @@
         </div>
 
         <!-- SUBPREGUNTA: Opción Única -->
-        <div v-if="subpreguntaActual.tipo === 'opcion_unica' || subpreguntaActual.tipo === 'opcion_unica_texto_libre'" class="opciones-container">
+        <div v-if="subpreguntaActual && (subpreguntaActual.tipo === 'opcion_unica' || subpreguntaActual.tipo === 'opcion_unica_texto_libre')" class="opciones-container">
             <div v-for="(opcion, index) in subpreguntaActual.opciones" 
                  :key="index"
                  class="opcion-item"
@@ -343,7 +341,7 @@
         </div>
 
         <!-- SUBPREGUNTA: Texto Libre -->
-        <div v-if="subpreguntaActual.tipo === 'texto_libre'" class="texto-libre-container">
+        <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'texto_libre'" class="texto-libre-container">
             <textarea 
                 :value="respuestasSubpreguntas[subpreguntaActual.id]?.texto || ''"
                 @input="actualizarTextoSubpregunta(subpreguntaActual, $event)"
@@ -357,7 +355,7 @@
         </div>
 
         <!-- SUBPREGUNTA: Indicador 0-10 -->
-        <div v-if="subpreguntaActual.tipo === 'indicador_0_10'" class="indicador-container">
+        <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'indicador_0_10'" class="indicador-container">
             <div class="indicador-header">
                 <div class="indicador-labels">
                     <span class="indicador-min">0</span>
@@ -456,6 +454,9 @@
 </template>
 
 <script>
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
+
 export default {
     name: 'Calificacion',
     data() {
@@ -570,6 +571,11 @@ export default {
         return this.preguntaActual === this.preguntas.length - 1;
     },
     porcentajeProgreso() {
+        if (this.modoSubpreguntas) {
+            return this.subpreguntasActuales.length > 0 
+                ? ((this.subpreguntaIndex + 1) / this.subpreguntasActuales.length) * 100 
+                : 0;
+        }
         return this.preguntas.length > 0 ? ((this.preguntaActual + 1) / this.preguntas.length) * 100 : 0;
     },
     porcentajeTiempo() {
@@ -934,7 +940,13 @@ respuestaUnica: {
                 
             } catch (error) {
                 console.error('❌ Error guardando calificación secuencial:', error);
-                alert('Error al guardar la calificación: ' + error.message);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al guardar',
+                    text: 'Error al guardar la calificación: ' + error.message,
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#ef4444'
+                });
             }
         },
         
@@ -1137,7 +1149,13 @@ respuestaUnica: {
                         this.preguntaRangoActual = null;
                         this.debugFlujoPreguntas();
                     } else {
-                        alert('No hay preguntas configuradas para este nivel en esta área y sede. Por favor, contacta al administrador.');
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Sin preguntas configuradas',
+                            text: 'No hay preguntas configuradas para este nivel en esta área y sede. Por favor, contacta al administrador.',
+                            confirmButtonText: 'Entendido',
+                            confirmButtonColor: '#4f46e5'
+                        });
                     }
                 } else {
                     const errorData = await response.json();
@@ -1145,7 +1163,13 @@ respuestaUnica: {
                 }
             } catch (error) {
                 console.error('Error cargando preguntas:', error);
-                alert('Error al cargar las preguntas: ' + error.message);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al cargar preguntas',
+                    text: error.message || 'Ocurrió un error al cargar las preguntas',
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#ef4444'
+                });
             } finally {
                 this.cargando = false;
             }
@@ -1260,19 +1284,56 @@ validarRespuestaSubpregunta(subpregunta, respuesta) {
             if (respuesta.valor !== undefined) {
                 console.log('🎯 Procesando indicador con valor:', respuesta.valor);
                 
+                // 🔥 CORRECCIÓN: Cerrar el modal ANTES de buscar la pregunta de rango para evitar mostrar "Pregunta según tu calificación"
+                const esNPS = this.tipoCalificacionActual === 'nps';
+                if (esNPS) {
+                    // Cerrar modal primero para que no se muestre el mensaje genérico
+                    this.mostrarCuestionario = false;
+                }
+                
                 const tienePreguntaRango = await this.cargarPreguntaRango(
                     this.preguntaActualData.id, 
                     respuesta.valor
                 );
                 
                 if (tienePreguntaRango) {
+                    // Si hay pregunta de rango, abrir el modal de nuevo
+                    this.mostrarCuestionario = true;
                     console.log('✅ Pregunta de rango cargada, avanzando a ella...');
                     // Avanzar a la pregunta de rango recién agregada
                     this.preguntaActual++;
                     this.cargando = false;
                     return;
                 } else {
+                    // 🔥 NUEVO: Cuando no hay pregunta de rango para NPS, verificar si hay más tipos o finalizar
+                    console.log('📭 No hay pregunta de rango para este valor');
+                    this.cargando = false;
+                    
+                    // Si es NPS y no hay pregunta de rango, verificar si hay más tipos de calificación
+                    if (esNPS) {
+                        // La alerta ya se mostró en cargarPreguntaRango() con await
+                        // El modal ya está cerrado arriba
+                        
+                        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                                           this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+                        
+                        if (!hayMasTipos) {
+                            // No hay más tipos, finalizar directamente
+                            console.log('🎉 NPS sin pregunta de rango: Finalizando calificación...');
+                            await this.guardarCalificacionCompleta();
+                            this.mostrarAgradecimiento = true;
+                            this.iniciarTemporizadorCierre();
+                            return;
+                        } else {
+                            // Hay más tipos, avanzar al siguiente
+                            console.log('➡️ NPS sin pregunta de rango: Avanzando al siguiente tipo...');
+                            await this.avanzarAlSiguienteTipo();
+                            return;
+                        }
+                    }
+                    // Si no es NPS, continuar normalmente
                     console.log('📭 No hay pregunta de rango, continuando normalmente');
+                    this.cargando = false;
                 }
             }
         }
@@ -1291,7 +1352,13 @@ validarRespuestaSubpregunta(subpregunta, respuesta) {
 
     } catch (error) {
         console.error('Error:', error);
-        alert('Error al procesar: ' + error.message);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error al procesar',
+            text: 'Error al procesar: ' + error.message,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#ef4444'
+        });
     } finally {
         this.cargando = false;
     }
@@ -1334,8 +1401,32 @@ async procesarPreguntaNormal() {
             const esSí = opcionSeleccionada.opcion.toLowerCase() === 'sí' || opcionSeleccionada.opcion.toLowerCase() === 'si';
             const esNo = opcionSeleccionada.opcion.toLowerCase() === 'no';
             
-            if (esSí) {
-                // Si selecciona "Sí", finalizar directamente (no hay más tipos después de FCR)
+            // 🔥 CORRECCIÓN: Verificar subpreguntas tanto para "Sí" como para "No"
+            // Verificar flag y también existencia real de subpreguntas
+            const tieneSubpreguntasSi = opcionSeleccionada.tiene_subpreguntas || 
+                                        (opcionSeleccionada.subpreguntas && opcionSeleccionada.subpreguntas.length > 0);
+            
+            console.log('🔍 FCR procesarPreguntaNormal - Verificando subpreguntas para "Sí":', {
+                esSí,
+                tiene_subpreguntas: opcionSeleccionada.tiene_subpreguntas,
+                subpreguntas: opcionSeleccionada.subpreguntas,
+                subpreguntasLength: opcionSeleccionada.subpreguntas?.length || 0,
+                tieneSubpreguntasSi,
+                opcionId: opcionSeleccionada.id
+            });
+            
+            if (esSí && tieneSubpreguntasSi) {
+                // Si selecciona "Sí" y tiene subpreguntas, cargarlas
+                console.log('✅ FCR: Se resolvió (Sí) con subpreguntas, cargando...');
+                
+                // 🔥 CORRECCIÓN: Mantener el modal abierto antes de iniciar modo subpreguntas
+                this.mostrarCuestionario = true;
+                
+                await this.iniciarModoSubpreguntas(opcionSeleccionada.id);
+                return;
+            } else if (esSí) {
+                console.log('⚠️ FCR: Se resolvió (Sí) pero NO tiene subpreguntas, finalizando...');
+                // Si selecciona "Sí" sin subpreguntas, finalizar directamente
                 console.log('✅ FCR: Se resolvió (Sí), finalizando...');
                 await this.guardarCalificacionCompleta();
                 this.mostrarCuestionario = false;
@@ -1345,11 +1436,15 @@ async procesarPreguntaNormal() {
             } else if (esNo && opcionSeleccionada.tiene_subpreguntas) {
                 // Si selecciona "No" y tiene subpreguntas, cargarlas
                 console.log('❌ FCR: NO se resolvió, cargando subpreguntas...');
+                
+                // 🔥 CORRECCIÓN: Mantener el modal abierto antes de iniciar modo subpreguntas
+                this.mostrarCuestionario = true;
+                
                 await this.iniciarModoSubpreguntas(opcionSeleccionada.id);
                 return;
             } else if (esNo) {
-                // Si selecciona "No" pero NO tiene subpreguntas, finalizar igualmente
-                console.log('❌ FCR: NO se resolvió, pero no hay subpreguntas configuradas. Finalizando...');
+                // 🔥 CORRECCIÓN: Si selecciona "No" pero NO tiene subpreguntas, finalizar DIRECTAMENTE sin mensaje
+                console.log('❌ FCR: NO se resolvió, pero no hay subpreguntas. Finalizando directamente sin mensaje...');
                 await this.guardarCalificacionCompleta();
                 this.mostrarCuestionario = false;
                 this.mostrarAgradecimiento = true;
@@ -1429,9 +1524,15 @@ async iniciarModoSubpreguntas(opcionId) {
                 this.modoSubpreguntas = true;
                 this.inicializarRespuestasSubpreguntas();
                 
+                // 🔥 CORRECCIÓN: Asegurar que el modal esté visible para mostrar subpreguntas
+                this.mostrarCuestionario = true;
+                this.cargando = false;
+                
                 console.log('✅ Modo subpreguntas activado:', this.subpreguntasActuales.length);
+                console.log('✅ mostrarCuestionario:', this.mostrarCuestionario);
             } else {
                 console.log('📭 No hay subpreguntas, continuando normalmente');
+                this.cargando = false;
                 this.preguntaActual++;
                 await this.verificarFinalizacion();
             }
@@ -1749,7 +1850,7 @@ extraerRespuestasSubpreguntas() {
 /**
  * 🔥 CORREGIDO: Cargar pregunta de rango para indicador
  */
-async cargarPreguntaRango(preguntaId, valor) {
+async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
     try {
         console.log('🔍 Buscando pregunta de rango para:', { preguntaId, valor });
         
@@ -1799,11 +1900,32 @@ async cargarPreguntaRango(preguntaId, valor) {
             }
         }
         
+        // 🔥 NUEVO: Mostrar alerta cuando no hay preguntas de rango configuradas (solo si se solicita)
+        if (mostrarAlerta) {
+            // Esperar a que el usuario vea y cierre la alerta antes de continuar
+            await Swal.fire({
+                icon: 'info',
+                title: 'Sin preguntas configuradas',
+                text: `No hay preguntas configuradas para el valor ${valor} (escala 0-10). La calificación será guardada sin preguntas adicionales.`,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: '#4f46e5',
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            });
+        }
+        
         console.log('📭 No se encontró pregunta de rango para este valor');
         return false;
         
     } catch (error) {
         console.error('❌ Error cargando pregunta de rango:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al cargar la pregunta de rango: ' + error.message,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#ef4444'
+        });
         return false;
     }
 },
@@ -2856,7 +2978,49 @@ async iniciarConNPS() {
     // 🔥 NUEVO: Establecer tipo actual como NPS
     this.tipoCalificacionActual = 'nps';
     
-    await this.iniciarCuestionario(this.nivelSeleccionado);
+    // 🔥 CORRECCIÓN: Cargar las preguntas pero NO abrir el modal todavía
+    this.cargando = true;
+    
+    try {
+        const sedeGuardada = localStorage.getItem('sede_seleccionada');
+        let sedeId = null;
+        
+        if (this.areaSeleccionada.sede_id) {
+            sedeId = this.areaSeleccionada.sede_id;
+        } else if (sedeGuardada) {
+            const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
+            if (sedeResponse.ok) {
+                const sedeData = await sedeResponse.json();
+                sedeId = sedeData.id;
+            }
+        }
+
+        let url = `/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=${this.nivelSeleccionado.id}`;
+        if (sedeId) {
+            url += `&sede_id=${sedeId}`;
+        }
+
+        const response = await fetch(url);
+        
+        if (response.ok) {
+            const todasLasPreguntas = await response.json();
+            
+            // Filtrar solo preguntas NPS raíces
+            this.preguntas = todasLasPreguntas.filter(pregunta => {
+                const esRaiz = !pregunta.es_condicional || pregunta.es_condicional === false;
+                const esDelTipoCorrecto = pregunta.tipo_pregunta === 'nps';
+                return esRaiz && esDelTipoCorrecto;
+            });
+            
+            this.todasLasPreguntas = todasLasPreguntas;
+        } else {
+            throw new Error('Error al cargar preguntas');
+        }
+    } catch (error) {
+        console.error('Error cargando preguntas NPS:', error);
+        this.cargando = false;
+        return;
+    }
     
     // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Si viene del flujo secuencial, NO eliminar la pregunta NPS,
     // déjala visible para que el usuario pueda verla y usar el slider en el modal
@@ -2871,38 +3035,53 @@ async iniciarConNPS() {
             this.respuestas[preguntaNPS.id] = { valor: valorGuardado };
             console.log('✅ Respuesta NPS guardada:', valorGuardado);
             
-            // Cargar directamente las subpreguntas de rango
-            const tienePreguntaRango = await this.cargarPreguntaRango(preguntaNPS.id, valorGuardado);
+            // Cargar directamente las subpreguntas de rango (mostrar alerta si no hay)
+            const tienePreguntaRango = await this.cargarPreguntaRango(preguntaNPS.id, valorGuardado, true);
             
             if (tienePreguntaRango) {
-                console.log('✅ Subpreguntas de rango cargadas, eliminando pregunta principal NPS');
+                console.log('✅ Subpreguntas de rango cargadas, abriendo modal con pregunta de rango');
                 // Eliminar la pregunta principal NPS del array - ya no se mostrará
                 this.preguntas.splice(0, 1);
+                // Ahora sí abrir el modal para mostrar la pregunta de rango
+                this.mostrarCuestionario = true;
+                this.preguntaActual = 0;
+                this.cargando = false;
                 console.log('🗑️ Pregunta NPS principal eliminada del flujo');
             } else {
-                // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Verificar si hay más tipos después de NPS
+                // 🔥 CORRECCIÓN: Cuando no hay pregunta de rango, la alerta ya se mostró en cargarPreguntaRango
+                // NO abrir el modal, solo finalizar o avanzar
+                this.cargando = false;
                 const hayMasTiposNPS = this.tiposCalificacionSecuencia.length > 1 && 
                                         this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
                 
                 if (!hayMasTiposNPS) {
                     console.log('🎉 NPS final sin preguntas de rango: Finalizando directamente...');
                     await this.guardarCalificacionCompleta();
-                    this.mostrarCuestionario = false;
                     this.mostrarAgradecimiento = true;
                     this.iniciarTemporizadorCierre();
+                    return;
+                } else {
+                    console.log('➡️ NPS sin pregunta de rango pero hay más tipos: Avanzando...');
+                    await this.avanzarAlSiguienteTipo();
                     return;
                 }
             }
         }
     } else if (vieneDelFlujoSecuencial && this.preguntas.length > 0) {
-        // 🔥 CORRECCIÓN: Si viene del flujo secuencial, inicializar el valor pero NO eliminar la pregunta
+        // 🔥 CORRECCIÓN: Si viene del flujo secuencial, inicializar el valor y abrir el modal
         const preguntaNPS = this.preguntas[0];
         if (preguntaNPS.tipo === 'indicador_0_10') {
             // Inicializar el valor del indicador con el valor guardado
             this.respuestas[preguntaNPS.id] = { valor: valorGuardado };
             this.respuestaIndicadorValor = valorGuardado;
+            // Abrir el modal para que el usuario pueda usar el slider
+            this.mostrarCuestionario = true;
+            this.preguntaActual = 0;
+            this.cargando = false;
             console.log('✅ NPS en flujo secuencial: Pregunta preparada con valor inicial:', valorGuardado);
         }
+    } else {
+        this.cargando = false;
     }
 },
 
@@ -2914,7 +3093,7 @@ async iniciarConFCR(resuelto, opcion) {
     this.tipoCalificacionActual = 'fcr';
     
     if (resuelto) {
-        // ✅ Si selecciona "Sí" → Guardar respuesta y verificar si hay más tipos
+        // ✅ Si selecciona "Sí" → Verificar si tiene subpreguntas primero
         console.log('✅ FCR: Se resolvió');
         
         // Guardar respuesta FCR
@@ -2925,6 +3104,41 @@ async iniciarConFCR(resuelto, opcion) {
             };
         }
         
+        // 🔥 CORRECCIÓN: Verificar si la opción "Sí" tiene subpreguntas
+        // Primero verificar el flag, pero también verificar directamente si hay subpreguntas en la opción
+        const tieneSubpreguntasFlag = opcionSeleccionada.tiene_subpreguntas || 
+                                      (opcionSeleccionada.subpreguntas && opcionSeleccionada.subpreguntas.length > 0);
+        
+        console.log('🔍 Verificando subpreguntas para "Sí":', {
+            tiene_subpreguntas: opcionSeleccionada.tiene_subpreguntas,
+            subpreguntas: opcionSeleccionada.subpreguntas,
+            opcionId: opcionSeleccionada.id,
+            opcion: opcionSeleccionada
+        });
+        
+        if (tieneSubpreguntasFlag) {
+            console.log('✅ FCR: Opción "Sí" tiene subpreguntas, cargándolas...');
+            
+            // Simular nivel para cargar las subpreguntas
+            this.nivelSeleccionado = { 
+                id: 2, 
+                nombre: 'FCR - Sí',
+                valor: 2,
+                esFCR: true,
+                resuelto: true
+            };
+            
+            // 🔥 CORRECCIÓN: Mantener el modal abierto antes de cargar subpreguntas
+            this.mostrarCuestionario = true;
+            
+            // Cargar las subpreguntas de "Sí"
+            await this.cargarSubpreguntasFCRParaOpcion(opcionSeleccionada.id, true);
+            return;
+        } else {
+            console.log('⚠️ FCR: Opción "Sí" NO tiene subpreguntas, continuando flujo normal');
+        }
+        
+        // Si no tiene subpreguntas, continuar con el flujo normal
         // Verificar si hay más tipos en la secuencia
         const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
                             this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
@@ -2967,6 +3181,111 @@ async iniciarConFCR(resuelto, opcion) {
         
         // Iniciar con las subpreguntas directamente
         await this.cargarSubpreguntasFCR();
+    }
+},
+
+// 🔥 NUEVO: Método para cargar subpreguntas de cualquier opción FCR (Sí o No)
+async cargarSubpreguntasFCRParaOpcion(opcionId, esSi = false) {
+    this.cargando = true;
+    
+    try {
+        const sedeGuardada = localStorage.getItem('sede_seleccionada');
+        const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
+        let sedeId = 1;
+        if (sedeResponse.ok) {
+            const sedeData = await sedeResponse.json();
+            sedeId = sedeData.id;
+        }
+        
+        // Cargar las subpreguntas de la opción
+        const subpreguntasResponse = await fetch(`/api/subpreguntas/${opcionId}`);
+        
+        if (subpreguntasResponse.ok) {
+            let subpreguntas = await subpreguntasResponse.json();
+            
+            // Procesar opciones de las subpreguntas
+            subpreguntas = subpreguntas.map(subpregunta => {
+                // Asegurar que las opciones sean un array
+                let opcionesArray = [];
+                if (subpregunta.opciones) {
+                    if (Array.isArray(subpregunta.opciones)) {
+                        opcionesArray = subpregunta.opciones;
+                    } else if (typeof subpregunta.opciones === 'string') {
+                        try {
+                            opcionesArray = JSON.parse(subpregunta.opciones);
+                        } catch (e) {
+                            console.warn('Error parseando opciones:', e);
+                            opcionesArray = [];
+                        }
+                    }
+                }
+                
+                return {
+                    ...subpregunta,
+                    opciones: opcionesArray,
+                    opciones_array: opcionesArray
+                };
+            });
+            
+            if (subpreguntas.length > 0) {
+                console.log('✅ Subpreguntas cargadas:', subpreguntas);
+                
+                // Inicializar modo subpreguntas con los datos ya cargados
+                this.subpreguntasActuales = subpreguntas;
+                this.subpreguntaIndex = 0;
+                this.modoSubpreguntas = true;
+                this.inicializarRespuestasSubpreguntas();
+                
+                // 🔥 CORRECCIÓN: Asegurar que el modal esté visible para mostrar subpreguntas
+                this.mostrarCuestionario = true;
+                this.cargando = false;
+                
+                console.log('✅ Modo subpreguntas activado para opción:', opcionId);
+                console.log('✅ mostrarCuestionario:', this.mostrarCuestionario);
+                console.log('✅ subpreguntasActuales.length:', this.subpreguntasActuales.length);
+            } else {
+                console.log('⚠️ No hay subpreguntas para esta opción');
+                this.cargando = false;
+                
+                // Si no hay subpreguntas, continuar con el flujo normal
+                const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                                    this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+                
+                if (!hayMasTipos) {
+                    await this.guardarCalificacionCompleta();
+                    this.mostrarCuestionario = false;
+                    this.mostrarAgradecimiento = true;
+                    this.iniciarTemporizadorCierre();
+                } else {
+                    await this.avanzarAlSiguienteTipo();
+                }
+            }
+        } else {
+            throw new Error('Error al cargar subpreguntas');
+        }
+    } catch (error) {
+        console.error('❌ Error cargando subpreguntas FCR:', error);
+        this.cargando = false;
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al cargar las subpreguntas: ' + error.message,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#ef4444'
+        });
+        
+        // Continuar con el flujo normal en caso de error
+        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                            this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+        
+        if (!hayMasTipos) {
+            await this.guardarCalificacionCompleta();
+            this.mostrarCuestionario = false;
+            this.mostrarAgradecimiento = true;
+            this.iniciarTemporizadorCierre();
+        } else {
+            await this.avanzarAlSiguienteTipo();
+        }
     }
 },
 
@@ -3036,13 +3355,22 @@ async cargarSubpreguntasFCR() {
                         this.mostrarCuestionario = true;
                         this.cargando = false;
                     } else {
-                        console.error('❌ No se pudieron cargar las subpreguntas');
-                        alert('Error al cargar las preguntas del motivo');
+                        // 🔥 CORRECCIÓN: Si hay error cargando subpreguntas, finalizar DIRECTAMENTE sin mensaje
+                        console.error('❌ No se pudieron cargar las subpreguntas, finalizando directamente');
                         this.cargando = false;
+                        await this.guardarCalificacionCompleta();
+                        this.mostrarCuestionario = false;
+                        this.mostrarAgradecimiento = true;
+                        this.iniciarTemporizadorCierre();
                     }
                 } else {
-                    console.error('La opción "No" no tiene subpreguntas configuradas');
-                    alert('Error: No hay subpreguntas configuradas para esta opción');
+                    // 🔥 CORRECCIÓN: Si no hay subpreguntas para "No", finalizar DIRECTAMENTE sin mensaje
+                    console.log('⚠️ FCR "No": No tiene subpreguntas configuradas, finalizando directamente sin mensaje');
+                    this.cargando = false;
+                    await this.guardarCalificacionCompleta();
+                    this.mostrarCuestionario = false;
+                    this.mostrarAgradecimiento = true;
+                    this.iniciarTemporizadorCierre();
                 }
             }
         }
@@ -3076,8 +3404,25 @@ async cargarPreguntaFCR() {
             const preguntaFCR = preguntas.find(p => p.tipo_pregunta === 'fcr' && p.is_active);
             
             if (preguntaFCR) {
+                // 🔥 CORRECCIÓN: Asegurar que cada opción tenga el flag tiene_subpreguntas correcto
+                if (preguntaFCR.opciones) {
+                    preguntaFCR.opciones = preguntaFCR.opciones.map(opcion => {
+                        // Verificar si realmente tiene subpreguntas
+                        const tieneSubpreguntas = opcion.subpreguntas && 
+                                                  Array.isArray(opcion.subpreguntas) && 
+                                                  opcion.subpreguntas.length > 0;
+                        
+                        // Establecer el flag correctamente
+                        opcion.tiene_subpreguntas = tieneSubpreguntas;
+                        
+                        console.log(`📋 Opción "${opcion.opcion}": tiene_subpreguntas=${tieneSubpreguntas}, subpreguntas=${opcion.subpreguntas?.length || 0}`);
+                        
+                        return opcion;
+                    });
+                }
+                
                 this.preguntaFCRPrincipal = preguntaFCR;
-                console.log('✅ Pregunta FCR cargada:', preguntaFCR);
+                console.log('✅ Pregunta FCR cargada con opciones procesadas:', preguntaFCR);
             } else {
                 console.warn('⚠️ No se encontró pregunta FCR configurada');
                 this.preguntaFCRPrincipal = null;
@@ -3440,7 +3785,7 @@ async cargarPreguntaFCR() {
 
 .texto-libre-container {
     max-width: 600px;
-    margin: 0 auto;
+    margin: 2% auto 0 auto;
 }
 
 .texto-libre-input {
@@ -4048,14 +4393,15 @@ async cargarPreguntaFCR() {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.subpregunta-header {
+/* Estilos antiguos - ya no se usan para subpreguntas actuales */
+.subpregunta-item .subpregunta-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 1rem;
 }
 
-.subpregunta-header h5 {
+.subpregunta-item .subpregunta-header h5 {
     color: #1F2937;
     margin: 0;
     flex: 1;

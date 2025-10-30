@@ -27,9 +27,15 @@ class OpcionPregunta extends Model
         return $this->belongsTo(Pregunta::class, 'pregunta_siguiente_id');
     }
 
+    public function respuestasCalificacion()
+    {
+        return $this->hasMany(RespuestaCalificacion::class, 'opcion_seleccionada_id');
+    }
+    
+    // Mantener compatibilidad con código que use calificaciones()
     public function calificaciones()
     {
-        return $this->hasMany(Calificacion::class, 'opcion_seleccionada_id');
+        return $this->respuestasCalificacion();
     }
 
     /**

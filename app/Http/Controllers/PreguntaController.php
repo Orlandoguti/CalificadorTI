@@ -117,13 +117,31 @@ class PreguntaController extends Controller
             // 🔥 NUEVO: Agregar subpreguntas de rango procesadas
             if ($pregunta->tipo === 'indicador_0_10' && $pregunta->subpreguntasRango) {
                 $pregunta->subpreguntas_rango = $pregunta->subpreguntasRango->map(function($sp) {
+                    // Procesar opciones desde JSON string a array
+                    $opcionesArray = [];
+                    if ($sp->opciones) {
+                        if (is_string($sp->opciones)) {
+                            try {
+                                $opcionesArray = json_decode($sp->opciones, true);
+                                if (!is_array($opcionesArray)) {
+                                    $opcionesArray = [];
+                                }
+                            } catch (\Exception $e) {
+                                Log::warning('Error parseando opciones de rango: ' . $e->getMessage());
+                                $opcionesArray = [];
+                            }
+                        } elseif (is_array($sp->opciones)) {
+                            $opcionesArray = $sp->opciones;
+                        }
+                    }
+                    
                     return [
                         'id' => $sp->id,
                         'rango_min' => $sp->rango_min,
                         'rango_max' => $sp->rango_max,
                         'pregunta_texto' => $sp->pregunta_texto,
                         'tipo' => $sp->tipo,
-                        'opciones' => $sp->opciones,
+                        'opciones' => $opcionesArray, // 🔥 CORRECCIÓN: Enviar como array, no JSON string
                         'is_active' => $sp->is_active
                     ];
                 })->toArray();
@@ -196,6 +214,33 @@ public function store(Request $request)
             // 🔥 NUEVO: Subpreguntas FCR
             'subpreguntas_fcr' => 'sometimes|array',
         ]);
+        
+        // 🔥 NUEVO: Validar que para CSAT no se use un nivel que ya tiene pregunta
+        if (isset($validated['tipo_pregunta']) && $validated['tipo_pregunta'] === 'csat' && isset($validated['niveles_calificacion_id'])) {
+            $nivelId = $validated['niveles_calificacion_id'];
+            
+            // Validar que el nivel esté en el rango correcto (1-4 para CSAT)
+            if ($nivelId < 1 || $nivelId > 4) {
+                DB::rollBack();
+                return response()->json([
+                    'error' => 'Los niveles de calificación CSAT deben estar entre 1 y 4 (Muy Insatisfecho a Muy Satisfecho).'
+                ], 422);
+            }
+            
+            // Verificar si ya existe una pregunta CSAT activa con este nivel
+            $preguntaExistente = Pregunta::where('tipo_pregunta', 'csat')
+                ->where('niveles_calificacion_id', $nivelId)
+                ->where('is_active', true)
+                ->first();
+            
+            if ($preguntaExistente) {
+                DB::rollBack();
+                Log::warning("Intento de crear pregunta CSAT duplicada para nivel {$nivelId}");
+                return response()->json([
+                    'error' => 'Ya existe una pregunta CSAT activa para este nivel de calificación. Solo se puede crear una pregunta por nivel (Muy Insatisfecho, Insatisfecho, Satisfecho, Muy Satisfecho).'
+                ], 422);
+            }
+        }
 
         // Crear la pregunta principal (sin area_id ni sede_id - se usarán en tabla pivote)
         // 🔥 CORREGIDO: niveles_calificacion_id puede ser null para preguntas genéricas (FCR/NPS)
@@ -482,7 +527,7 @@ private function crearPreguntasRango($preguntaIndicadorId, $configuracionRangos)
         $validated = $request->validate([
             'pregunta' => 'required|string|max:500',
             'area_id' => 'nullable|exists:areas,id', // 🔥 Cambiado a nullable para preguntas genéricas
-            'niveles_calificacion_id' => 'required|exists:niveles_calificacion,id',
+            'niveles_calificacion_id' => 'nullable|exists:niveles_calificacion,id', // 🔥 Cambiado a nullable para preguntas genéricas (NPS, FCR)
             'sede_id' => 'nullable|exists:sedes,id', // 🔥 Cambiado a nullable para preguntas genéricas
             'tipo' => 'required|in:opcion_unica,opcion_multiple,texto_libre,indicador_0_10,opcion_unica_texto_libre',
             'tipo_pregunta' => 'nullable|in:csat,nps,fcr', // 🔥 Agregar tipo_pregunta
@@ -495,10 +540,14 @@ private function crearPreguntasRango($preguntaIndicadorId, $configuracionRangos)
         // 🔥 Preparar datos para actualizar (excluir campos null para preguntas genéricas)
         $datosUpdate = [
             'pregunta' => $validated['pregunta'],
-            'niveles_calificacion_id' => $validated['niveles_calificacion_id'],
             'tipo' => $validated['tipo'],
             'is_active' => $validated['is_active'] ?? $pregunta->is_active
         ];
+        
+        // Solo actualizar niveles_calificacion_id si está presente (puede ser null para NPS/FCR)
+        if (isset($validated['niveles_calificacion_id'])) {
+            $datosUpdate['niveles_calificacion_id'] = $validated['niveles_calificacion_id'];
+        }
         
         // Solo actualizar area_id y sede_id si están presentes (no genéricas)
         if (isset($validated['area_id'])) {
@@ -557,69 +606,274 @@ private function eliminarPreguntasRango($preguntaIndicadorId)
 }
 
 /**
- * 🔥 NUEVO: Actualizar preguntas de rango
+ * 🔥 NUEVO: Actualizar preguntas de rango de forma inteligente
  */
 private function actualizarPreguntasRango($preguntaIndicadorId, $configuracionRangos)
 {
-    // Primero eliminar todas las preguntas de rango existentes
-    $this->eliminarPreguntasRango($preguntaIndicadorId);
+    Log::info("🔄 Actualizando rangos para pregunta indicador {$preguntaIndicadorId}");
+    Log::info("📋 Rangos recibidos: " . count($configuracionRangos));
     
-    // Luego crear las nuevas preguntas de rango
-    if (!empty($configuracionRangos)) {
-        $this->crearPreguntasRango($preguntaIndicadorId, $configuracionRangos);
+    // Obtener rangos existentes con sus IDs
+    $rangosExistentes = Subpregunta::where('pregunta_indicador_id', $preguntaIndicadorId)
+        ->where('es_rango_indicador', true)
+        ->get()
+        ->keyBy(function($sp) {
+            return $sp->rango_min . '-' . $sp->rango_max;
+        });
+    
+    // IDs de rangos que se deben mantener (vienen con ID en configuracionRangos)
+    $idsAMantener = [];
+    $rangosActualizados = [];
+    
+    foreach ($configuracionRangos as $config) {
+        // Solo procesar si el rango está activo y tiene pregunta
+        if ($config['activo'] && !empty(trim($config['pregunta_texto']))) {
+            $rangoMin = $config['inicio'];
+            $rangoMax = $config['fin'];
+            $claveRango = $rangoMin . '-' . $rangoMax;
+            
+            // Procesar opciones (pueden venir como array de objetos {texto: '...'} o como strings)
+            $opcionesFinales = [];
+            if (!empty($config['opciones']) && is_array($config['opciones'])) {
+                $opcionesFinales = array_map(function($op) {
+                    if (is_array($op)) {
+                        // Si es objeto, extraer el texto
+                        return trim($op['texto'] ?? '');
+                    }
+                    // Si es string directo
+                    return trim((string)$op);
+                }, array_filter($config['opciones'], function($op) {
+                    if (is_array($op)) {
+                        $texto = $op['texto'] ?? '';
+                    } else {
+                        $texto = (string)$op;
+                    }
+                    return !empty(trim($texto));
+                }));
+            }
+            
+            Log::info("📋 Procesando rango {$rangoMin}-{$rangoMax}: " . count($opcionesFinales) . " opciones finales");
+            
+            // Si tiene ID, es un rango existente que se actualiza
+            if (isset($config['id']) && $config['id']) {
+                $subpregunta = Subpregunta::find($config['id']);
+                if ($subpregunta && $subpregunta->pregunta_indicador_id == $preguntaIndicadorId) {
+                    // Actualizar rango existente
+                    $subpregunta->update([
+                        'rango_min' => $rangoMin,
+                        'rango_max' => $rangoMax,
+                        'pregunta_texto' => trim($config['pregunta_texto']),
+                        'tipo' => $config['tipo'],
+                        'opciones' => !empty($opcionesFinales) ? json_encode($opcionesFinales) : null,
+                        'is_active' => true,
+                        'es_rango_indicador' => true
+                    ]);
+                    $idsAMantener[] = $subpregunta->id;
+                    Log::info("✅ Rango actualizado (ID: {$subpregunta->id}): {$rangoMin}-{$rangoMax}");
+                    continue;
+                }
+            }
+            
+            // Si no tiene ID o no se encontró, verificar si existe por rango
+            if ($rangosExistentes->has($claveRango)) {
+                $subpregunta = $rangosExistentes[$claveRango];
+                $subpregunta->update([
+                    'pregunta_texto' => trim($config['pregunta_texto']),
+                    'tipo' => $config['tipo'],
+                    'opciones' => !empty($opcionesFinales) ? json_encode($opcionesFinales) : null,
+                    'is_active' => true
+                ]);
+                $idsAMantener[] = $subpregunta->id;
+                Log::info("✅ Rango existente actualizado (ID: {$subpregunta->id}): {$rangoMin}-{$rangoMax}");
+            } else {
+                // Crear nuevo rango
+                $subpregunta = Subpregunta::create([
+                    'pregunta_indicador_id' => $preguntaIndicadorId,
+                    'pregunta_texto' => trim($config['pregunta_texto']),
+                    'tipo' => $config['tipo'],
+                    'opciones' => !empty($opcionesFinales) ? json_encode($opcionesFinales) : null,
+                    'is_active' => true,
+                    'es_rango_indicador' => true,
+                    'rango_min' => $rangoMin,
+                    'rango_max' => $rangoMax
+                ]);
+                $idsAMantener[] = $subpregunta->id;
+                Log::info("➕ Nuevo rango creado (ID: {$subpregunta->id}): {$rangoMin}-{$rangoMax}");
+            }
+            
+            // Manejar "Otro" para opcion_unica_texto_libre
+            if ($config['tipo'] === 'opcion_unica_texto_libre') {
+                $tieneOpcionOtro = false;
+                foreach ($opcionesFinales as $opcion) {
+                    if (stripos($opcion, 'otro') !== false || stripos($opcion, 'especifique') !== false) {
+                        $tieneOpcionOtro = true;
+                        break;
+                    }
+                }
+                
+                if (!$tieneOpcionOtro) {
+                    $opcionesFinales[] = 'Otro - especifique';
+                    $subpregunta->update(['opciones' => json_encode($opcionesFinales)]);
+                    Log::info("✅ Opción 'Otro - especifique' agregada a rango {$rangoMin}-{$rangoMax}");
+                }
+            }
+        }
+    }
+    
+    // Eliminar rangos que ya no están en la configuración
+    if (!empty($idsAMantener)) {
+        $eliminados = Subpregunta::where('pregunta_indicador_id', $preguntaIndicadorId)
+            ->where('es_rango_indicador', true)
+            ->whereNotIn('id', $idsAMantener)
+            ->delete();
+        
+        if ($eliminados > 0) {
+            Log::info("🗑️ Eliminados {$eliminados} rango(s) que ya no están en la configuración");
+        }
+    } else {
+        // Si no hay rangos activos, eliminar todos
+        $this->eliminarPreguntasRango($preguntaIndicadorId);
     }
 }
 
 // 🔥 NUEVO MÉTODO: Actualizar opciones de forma segura
 private function actualizarOpcionesPregunta(Pregunta $pregunta, array $nuevasOpciones)
 {
-    $opcionesExistentes = $pregunta->opciones;
-    $opcionesAEliminar = [];
+    // Recargar opciones frescas desde la BD
+    $pregunta->refresh();
+    $pregunta->load('opciones');
+    $opcionesExistentes = $pregunta->opciones()->get();
+    
+    // Normalizar nuevas opciones: asegurarse de que son strings y limpiarlos
+    $nuevasOpcionesNormalizadas = array_map(function($opcion) {
+        if (is_array($opcion)) {
+            return isset($opcion['texto']) ? trim($opcion['texto']) : '';
+        }
+        return trim((string)$opcion);
+    }, $nuevasOpciones);
+    
+    // Filtrar opciones vacías
+    $nuevasOpcionesNormalizadas = array_values(array_filter($nuevasOpcionesNormalizadas, function($opcion) {
+        return !empty($opcion);
+    }));
+    
+    Log::info("📋 === ACTUALIZANDO OPCIONES DE PREGUNTA {$pregunta->id} ===");
+    Log::info("📋 Opciones existentes en BD (" . $opcionesExistentes->count() . "): " . $opcionesExistentes->pluck('opcion')->implode(', '));
+    Log::info("📋 Nuevas opciones recibidas (" . count($nuevasOpcionesNormalizadas) . "): " . implode(', ', $nuevasOpcionesNormalizadas));
+    
+    // Crear arrays normalizados para comparación (sin mayúsculas/minúsculas)
+    $nuevasOpcionesNormalizadasLower = array_map(function($op) {
+        return strtolower(trim($op));
+    }, $nuevasOpcionesNormalizadas);
+    
+    $idsAEliminar = [];
     
     // Identificar opciones a eliminar (solo las que no tienen respuestas)
     foreach ($opcionesExistentes as $opcionExistente) {
-        $encontrada = false;
-        foreach ($nuevasOpciones as $nuevaOpcionTexto) {
-            if (trim($nuevaOpcionTexto) === $opcionExistente->opcion) {
-                $encontrada = true;
-                break;
-            }
-        }
+        $opcionExistenteTexto = trim($opcionExistente->opcion);
+        $opcionExistenteLower = strtolower($opcionExistenteTexto);
+        
+        // Buscar si existe en las nuevas opciones (comparación insensible a mayúsculas)
+        $encontrada = in_array($opcionExistenteLower, $nuevasOpcionesNormalizadasLower);
         
         if (!$encontrada) {
             // Verificar si la opción tiene respuestas asociadas
-            if (!$opcionExistente->calificaciones()->exists()) {
-                $opcionesAEliminar[] = $opcionExistente->id;
+            $tieneRespuestas = $opcionExistente->respuestasCalificacion()->exists();
+            
+            if (!$tieneRespuestas) {
+                $idsAEliminar[] = $opcionExistente->id;
+                Log::info("🗑️ Opción marcada para eliminar (sin respuestas): '{$opcionExistenteTexto}' (ID: {$opcionExistente->id})");
+            } else {
+                Log::info("⚠️ Opción NO se eliminará (tiene respuestas): '{$opcionExistenteTexto}' (ID: {$opcionExistente->id})");
+            }
+        } else {
+            Log::info("✓ Opción se mantiene: '{$opcionExistenteTexto}' (ID: {$opcionExistente->id})");
+        }
+    }
+    
+    // Eliminar opciones sin respuestas
+    if (!empty($idsAEliminar)) {
+        // Verificar una vez más que las opciones no tengan respuestas antes de eliminar
+        $opcionesConRespuestas = [];
+        foreach ($idsAEliminar as $id) {
+            $opcion = OpcionPregunta::find($id);
+            if ($opcion && $opcion->respuestasCalificacion()->exists()) {
+                $opcionesConRespuestas[] = $id;
+            }
+        }
+        
+        $idsAEliminarFinal = array_diff($idsAEliminar, $opcionesConRespuestas);
+        
+        if (!empty($opcionesConRespuestas)) {
+            Log::info("⚠️ Opciones con respuestas que NO se eliminarán: " . implode(', ', $opcionesConRespuestas));
+        }
+        
+        if (!empty($idsAEliminarFinal)) {
+            $eliminadas = OpcionPregunta::whereIn('id', $idsAEliminarFinal)->delete();
+            Log::info("✅ Eliminadas {$eliminadas} opción(es) de la BD. IDs: " . implode(', ', $idsAEliminarFinal));
+        } else {
+            Log::info("ℹ️ Todas las opciones marcadas tienen respuestas, no se eliminará ninguna");
+        }
+    } else {
+        Log::info("ℹ️ No hay opciones para eliminar");
+    }
+    
+    // Recargar opciones después de eliminar
+    $pregunta->refresh();
+    $pregunta->load('opciones');
+    
+    // Agregar nuevas opciones o actualizar orden de existentes
+    foreach ($nuevasOpcionesNormalizadas as $index => $opcionTexto) {
+        $opcionTextoLower = strtolower(trim($opcionTexto));
+        
+        // Buscar si ya existe (comparación insensible a mayúsculas)
+        $existe = $pregunta->opciones()
+            ->get()
+            ->first(function($op) use ($opcionTextoLower) {
+                return strtolower(trim($op->opcion)) === $opcionTextoLower;
+            });
+            
+        if (!$existe) {
+            OpcionPregunta::create([
+                'pregunta_id' => $pregunta->id,
+                'opcion' => $opcionTexto,
+                'orden' => $index + 1
+            ]);
+            Log::info("➕ Nueva opción creada: '{$opcionTexto}'");
+        } else {
+            // Actualizar el orden si cambió
+            if ($existe->orden != ($index + 1)) {
+                $existe->update(['orden' => $index + 1]);
+                Log::info("🔄 Orden actualizado para opción: '{$opcionTexto}' (Orden: " . ($index + 1) . ")");
             }
         }
     }
     
-    // Eliminar solo opciones sin respuestas
-    if (!empty($opcionesAEliminar)) {
-        OpcionPregunta::whereIn('id', $opcionesAEliminar)->delete();
-    }
+    // Verificación final
+    $pregunta->refresh();
+    $pregunta->load('opciones');
+    Log::info("📋 === OPCIONES FINALES EN BD (" . $pregunta->opciones->count() . "): " . $pregunta->opciones->pluck('opcion')->implode(', ') . " ===");
     
-    // Agregar nuevas opciones
-    foreach ($nuevasOpciones as $index => $opcionTexto) {
-        $opcionTexto = trim($opcionTexto);
-        if (!empty($opcionTexto)) {
-            // Verificar si ya existe
-            $existe = $pregunta->opciones()
-                ->where('opcion', $opcionTexto)
-                ->exists();
-                
-            if (!$existe) {
-                OpcionPregunta::create([
-                    'pregunta_id' => $pregunta->id,
-                    'opcion' => $opcionTexto,
-                    'orden' => $index + 1
-                ]);
-            }
+    // 🔥 CORRECCIÓN: Si NO es opcion_unica_texto_libre, eliminar cualquier opción "Otro" que exista
+    if ($pregunta->tipo !== 'opcion_unica_texto_libre') {
+        // Recargar opciones antes de buscar "Otro"
+        $pregunta->refresh();
+        $opcionesOtro = $pregunta->opciones()
+            ->where(function($query) {
+                $query->where('opcion', 'like', '%otro%')
+                      ->orWhere('opcion', 'like', '%especifique%');
+            })
+            ->get();
+            
+        if ($opcionesOtro->count() > 0) {
+            $idsOtro = $opcionesOtro->pluck('id')->toArray();
+            OpcionPregunta::whereIn('id', $idsOtro)->delete();
+            Log::info("🗑️ Opción(es) 'Otro - especifique' eliminada(s) porque el tipo ya no es opcion_unica_texto_libre. IDs: " . implode(', ', $idsOtro));
         }
-    }
-    
-    // 🔥 CORRECCIÓN: Asegurar opción "Otro" para opcion_unica_texto_libre
-    if ($pregunta->tipo === 'opcion_unica_texto_libre') {
+    } else {
+        // Recargar opciones antes de verificar "Otro"
+        $pregunta->refresh();
+        // Si SÍ es opcion_unica_texto_libre, asegurar que tenga opción "Otro"
         $tieneOpcionOtro = $pregunta->opciones()
             ->where(function($query) {
                 $query->where('opcion', 'like', '%otro%')
@@ -639,6 +893,10 @@ private function actualizarOpcionesPregunta(Pregunta $pregunta, array $nuevasOpc
             Log::info("✅ Opción 'Otro - especifique' agregada automáticamente a pregunta: " . $pregunta->id);
         }
     }
+    
+    // Recargar opciones final para reflejar todos los cambios
+    $pregunta->refresh();
+    $pregunta->load('opciones');
 }
 
         public function destroy(Pregunta $pregunta)

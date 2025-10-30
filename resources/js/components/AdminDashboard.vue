@@ -4,7 +4,7 @@
             <div class="header-content">
                 <div class="logo">
                     <i class="fas fa-university"></i>
-                    <h1>UNIFRANZ - Panel Admin</h1>
+                    <h1>UNIFRANZ</h1>
                     <sede-selector 
                         v-model="sedeSeleccionada"
                         @cambio-sede="onCambioSede"
@@ -58,7 +58,7 @@
                 <!-- Dashboard -->
                 <div v-if="activeTab === 'dashboard'" class="tab-content">
                     <div class="dashboard-header">
-                        <h1>Dashboard Estadístico</h1>
+                        <h1>Dashboard</h1>
                         <p>{{ getMensajeSede() }}</p>
                     </div>
 
@@ -86,7 +86,7 @@
                                 <label><i class="fas fa-building"></i> Área</label>
                                 <select v-model="filters.areaId" class="form-select">
                                     <option value="">Todas</option>
-                                    <option v-for="area in areas" :key="area.id" :value="area.id">
+                                    <option v-for="area in areasAgrupadas" :key="area.id" :value="area.id">
                                         {{ area.nombre }}
                                     </option>
                                 </select>
@@ -374,6 +374,35 @@ export default {
                     ? `Mostrando contenido de la sede ${sede.nombre}`
                     : 'Mostrando todo el contenido del sistema';
             };
+        },
+        // 🔥 NUEVO: Agrupar áreas por nombre (eliminar duplicados) y filtrar por sede
+        areasAgrupadas() {
+            const sedeId = this.sedeSeleccionada ? this.sedeSeleccionada.id : null;
+            
+            // Filtrar áreas por sede si está seleccionada
+            let areasFiltradas = this.areas;
+            if (sedeId) {
+                areasFiltradas = this.areas.filter(area => area.sede_id === sedeId);
+            }
+            
+            // Agrupar por nombre para eliminar duplicados
+            const areasUnicas = [];
+            const nombresVistos = new Set();
+            
+            areasFiltradas.forEach(area => {
+                const nombreNormalizado = area.nombre.trim().toLowerCase();
+                
+                // Si no hemos visto este nombre antes, agregarlo
+                if (!nombresVistos.has(nombreNormalizado)) {
+                    nombresVistos.add(nombreNormalizado);
+                    areasUnicas.push(area);
+                }
+            });
+            
+            // Ordenar alfabéticamente por nombre
+            return areasUnicas.sort((a, b) => {
+                return a.nombre.localeCompare(b.nombre);
+            });
         }
     },
     async mounted() {
@@ -398,7 +427,7 @@ export default {
 
         async cargarDatosBase() {
             try {
-                // Cargar áreas
+                // Cargar áreas (sin filtrar por sede aquí, el filtro se aplica en computed)
                 const areasResponse = await fetch('/api/areas');
                 if (areasResponse.ok) {
                     this.areas = await areasResponse.json();
@@ -741,6 +770,12 @@ export default {
         onCambioSede(sede) {
             console.log('🎯 AdminDashboard: Sede seleccionada:', sede);
             this.sedeSeleccionada = sede;
+            
+            // 🔥 CORRECCIÓN: Resetear filtro de área cuando cambia la sede
+            // Esto evita que quede seleccionada un área de otra sede
+            this.filters.areaId = '';
+            
+            // Recargar estadísticas con la nueva sede
             this.cargarEstadisticas();
         },
 
