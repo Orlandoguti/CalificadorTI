@@ -74,30 +74,12 @@
                                 </div>
                             </div>
                             <div class="filter-group">
-                                <label><i class="fas fa-layer-group"></i> Nivel</label>
-                                <select v-model="filters.nivelId" class="form-select">
-                                    <option value="">Todos los niveles</option>
-                                    <option v-for="nivel in nivelesCalificacion" :key="nivel.id" :value="nivel.id">
-                                        {{ nivel.nombre }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
                                 <label><i class="fas fa-building"></i> Área</label>
                                 <select v-model="filters.areaId" class="form-select">
                                     <option value="">Todas</option>
                                     <option v-for="area in areasAgrupadas" :key="area.id" :value="area.id">
                                         {{ area.nombre }}
                                     </option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label><i class="fas fa-chart-line"></i> Indicador</label>
-                                <select v-model="filters.tipoCalificacion" class="form-select">
-                                    <option value="">Todos los indicadores</option>
-                                    <option value="fcr">FCR</option>
-                                    <option value="csat">CSAT</option>
-                                    <option value="nps">NPS</option>
                                 </select>
                             </div>
                             <div class="filter-actions">
@@ -111,6 +93,35 @@
                         </div>
                     </div>
 
+
+                    <!-- Botones de Selección de Indicador -->
+                    <div class="indicador-selector">
+                        <button 
+                            @click="filters.tipoCalificacion = ''; cargarEstadisticas()"
+                            :class="['btn-indicador', { active: !filters.tipoCalificacion }]"
+                        >
+                            Todos
+                        </button>
+                        <button 
+                            @click="filters.tipoCalificacion = 'csat'; cargarEstadisticas()"
+                            :class="['btn-indicador', { active: filters.tipoCalificacion === 'csat' }]"
+                        >
+                            CSAT
+                        </button>
+                        <button 
+                            @click="filters.tipoCalificacion = 'fcr'; cargarEstadisticas()"
+                            :class="['btn-indicador', { active: filters.tipoCalificacion === 'fcr' }]"
+                        >
+                            FCR
+                        </button>
+                        <button 
+                            @click="filters.tipoCalificacion = 'nps'; cargarEstadisticas()"
+                            :class="['btn-indicador', { active: filters.tipoCalificacion === 'nps' }]"
+                        >
+                            NPS
+                        </button>
+                    </div>
+
                     <!-- Estadísticas Principales -->
                     <div class="stats-grid">
                         <div class="stat-card">
@@ -119,7 +130,7 @@
                             </div>
                             <div class="stat-info">
                                 <h3>{{ estadisticas.totales.encuestasRespondidas || 0 }}</h3>
-                                <p>Encuestas Respondidas{{ filters.tipoCalificacion ? ` (${filters.tipoCalificacion.toUpperCase()})` : '' }}</p>
+                                <p>Total Calificaciones{{ filters.tipoCalificacion ? ` (${filters.tipoCalificacion.toUpperCase()})` : '' }}</p>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -128,138 +139,171 @@
                             </div>
                             <div class="stat-info">
                                 <h3>{{ estadisticas.totales.areas || 0 }}</h3>
-                                <p>Áreas Evaluadas</p>
+                                <p>Áreas Evaluadas{{ filters.tipoCalificacion ? ` (${filters.tipoCalificacion.toUpperCase()})` : '' }}</p>
                             </div>
                         </div>
-                        <div class="stat-card" v-if="filters.tipoCalificacion && estadisticas.totales.valorIndicador !== null">
+                        <div class="stat-card">
                             <div class="stat-icon avg-rating">
                                 <i class="fas fa-chart-line"></i>
                             </div>
                             <div class="stat-info">
-                                <h3>{{ estadisticas.totales.valorIndicador || '0.0' }}%</h3>
-                                <p>{{ obtenerNombreIndicador(filters.tipoCalificacion) }}</p>
-                            </div>
-                        </div>
-                        <div class="stat-card" v-else>
-                            <div class="stat-icon avg-rating">
-                                <i class="fas fa-star"></i>
-                            </div>
-                            <div class="stat-info">
-                                <h3>{{ estadisticas.totales.promedioGeneral || '0.0' }}</h3>
-                                <p>Promedio General</p>
+                                <h3 v-if="filters.tipoCalificacion && estadisticas.totales.valorIndicador !== null">
+                                    {{ estadisticas.totales.valorIndicador || '0.0' }}%
+                                </h3>
+                                <h3 v-else>{{ estadisticas.totales.promedioGeneral || '0.0' }}%</h3>
+                                <p v-if="filters.tipoCalificacion && estadisticas.totales.valorIndicador !== null">
+                                    {{ obtenerNombreIndicador(filters.tipoCalificacion) }}
+                                </p>
+                                <p v-else>Porcentaje General</p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Gráficos Principales -->
+                    <!-- Nivel de Indicadores (Semáforo) -->
                     <div class="charts-grid">
-                        <!-- Distribución por Niveles -->
-                        <div class="chart-card">
+                        <div class="chart-card" v-if="mostrarIndicador('csat')">
                             <div class="chart-header">
-                                <h3>Distribución por Niveles de Satisfacción</h3>
-                                <p>Porcentaje de respuestas por nivel</p>
+                                <h3>CSAT</h3>
                             </div>
-                            <div class="chart-container">
-                                <canvas ref="nivelesChart"></canvas>
+                            <div class="chart-container semaforo-container">
+                                <div class="semaforo-semicircular-wrapper">
+                                    <div class="semaforo-semicircular">
+                                        <svg class="semaforo-svg" viewBox="0 0 200 100">
+                                            <!-- Fondo del semáforo completo -->
+                                            <path d="M 15 100 A 85 85 0 0 1 185 100 L 100 100 Z" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2"/>
+                                            <!-- Zona roja (0-50%) -->
+                                            <path d="M 15 100 A 85 85 0 0 1 100 100 L 100 100 Z" fill="#ef4444" opacity="0.3"/>
+                                            <!-- Zona amarilla (50-70%) -->
+                                            <path d="M 100 100 A 85 85 0 0 0 140 100 L 100 100 Z" fill="#f59e0b" opacity="0.3"/>
+                                            <!-- Zona verde (70-100%) -->
+                                            <path d="M 140 100 A 85 85 0 0 0 185 100 L 100 100 Z" fill="#10b981" opacity="0.3"/>
+                                            <!-- Indicador actual -->
+                                            <path :d="getSemaforoPath(getValorIndicador('csat'))" 
+                                                  :fill="getSemaforoColor(getValorIndicador('csat'))"
+                                                  opacity="0.8"
+                                                  stroke="#fff" stroke-width="2"/>
+                                        </svg>
+                                        <div class="semaforo-valor">{{ getValorIndicador('csat') }}%</div>
+                                    </div>
+                                    <div class="semaforo-respuestas">
+                                        Nº de Respuestas: {{ getTotalRespuestas('csat') }}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Calificaciones por Área -->
-                        <div class="chart-card">
+                        <div class="chart-card" v-if="mostrarIndicador('fcr')">
                             <div class="chart-header">
-                                <h3>Calificaciones por Área</h3>
-                                <p>Promedio de calificaciones por área</p>
+                                <h3>FCR</h3>
                             </div>
-                            <div class="chart-container">
-                                <canvas ref="areasChart"></canvas>
+                            <div class="chart-container semaforo-container">
+                                <div class="semaforo-semicircular-wrapper">
+                                    <div class="semaforo-semicircular">
+                                        <svg class="semaforo-svg" viewBox="0 0 200 100">
+                                            <!-- Fondo del semáforo completo -->
+                                            <path d="M 15 100 A 85 85 0 0 1 185 100 L 100 100 Z" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2"/>
+                                            <!-- Zona roja (0-50%) -->
+                                            <path d="M 15 100 A 85 85 0 0 1 100 100 L 100 100 Z" fill="#ef4444" opacity="0.3"/>
+                                            <!-- Zona amarilla (50-70%) -->
+                                            <path d="M 100 100 A 85 85 0 0 0 140 100 L 100 100 Z" fill="#f59e0b" opacity="0.3"/>
+                                            <!-- Zona verde (70-100%) -->
+                                            <path d="M 140 100 A 85 85 0 0 0 185 100 L 100 100 Z" fill="#10b981" opacity="0.3"/>
+                                            <!-- Indicador actual -->
+                                            <path :d="getSemaforoPath(getValorIndicador('fcr'))" 
+                                                  :fill="getSemaforoColor(getValorIndicador('fcr'))"
+                                                  opacity="0.8"
+                                                  stroke="#fff" stroke-width="2"/>
+                                        </svg>
+                                        <div class="semaforo-valor">{{ getValorIndicador('fcr') }}%</div>
+                                    </div>
+                                    <div class="semaforo-respuestas">
+                                        Nº de Respuestas: {{ getTotalRespuestas('fcr') }}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Preguntas Más Respondidas -->
+                        <div class="chart-card" v-if="mostrarIndicador('nps')">
+                            <div class="chart-header">
+                                <h3>NPS</h3>
+                                <p>Net Promoter Score</p>
+                            </div>
+                            <div class="chart-container semaforo-container">
+                                <div class="semaforo-semicircular-wrapper">
+                                    <div class="semaforo-semicircular">
+                                        <svg class="semaforo-svg" viewBox="0 0 200 100">
+                                            <!-- Fondo del semáforo completo -->
+                                            <path d="M 15 100 A 85 85 0 0 1 185 100 L 100 100 Z" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2"/>
+                                            <!-- Zona roja (0-50%) -->
+                                            <path d="M 15 100 A 85 85 0 0 1 100 100 L 100 100 Z" fill="#ef4444" opacity="0.3"/>
+                                            <!-- Zona amarilla (50-70%) -->
+                                            <path d="M 100 100 A 85 85 0 0 0 140 100 L 100 100 Z" fill="#f59e0b" opacity="0.3"/>
+                                            <!-- Zona verde (70-100%) -->
+                                            <path d="M 140 100 A 85 85 0 0 0 185 100 L 100 100 Z" fill="#10b981" opacity="0.3"/>
+                                            <!-- Indicador actual -->
+                                            <path :d="getSemaforoPath(getValorIndicador('nps'))" 
+                                                  :fill="getSemaforoColor(getValorIndicador('nps'))"
+                                                  opacity="0.8"
+                                                  stroke="#fff" stroke-width="2"/>
+                                        </svg>
+                                        <div class="semaforo-valor">{{ getValorIndicador('nps') }}%</div>
+                                    </div>
+                                    <div class="semaforo-respuestas">
+                                        Nº de Respuestas: {{ getTotalRespuestas('nps') }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Cantidad de Respuestas por Área -->
+                    <div class="charts-grid">
                         <div class="chart-card full-width">
                             <div class="chart-header">
-                                <h3>Preguntas Más Respondidas</h3>
-                                <p>Top 10 preguntas con más respuestas</p>
+                                <h3>Cantidad de Respuestas por Área</h3>
+                                <p>Diferenciado por indicador</p>
                             </div>
                             <div class="chart-container">
-                                <canvas ref="preguntasChart"></canvas>
-                            </div>
-                        </div>
-
-                        <!-- Evolución Temporal -->
-                        <div class="chart-card full-width">
-                            <div class="chart-header">
-                                <h3>Evolución Temporal</h3>
-                                <p>Calificaciones por semana</p>
-                            </div>
-                            <div class="chart-container">
-                                <canvas ref="evolucionChart"></canvas>
+                                <canvas ref="encuestasAreaChart"></canvas>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Tablas Detalladas -->
-                    <div class="tables-grid">
-                        <!-- Top Áreas -->
-                        <div class="table-card">
-                            <div class="table-header">
-                                <h3>Top 5 Áreas Mejor Calificadas</h3>
+                    <!-- Distribución NPS -->
+                    <div class="charts-grid" v-if="mostrarIndicador('nps')">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3>Distribución NPS</h3>
+                                <p>Promotores, Pasivos y Detractores</p>
                             </div>
-                            <div class="table-container">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Área</th>
-                                            <th>Promedio</th>
-                                            <th>Total Respuestas</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="area in estadisticas.topAreas" :key="area.id">
-                                            <td>
-                                                <div class="area-info">
-                                                    <strong>{{ area.nombre }}</strong>
-                                                    <small>{{ area.codigo }}</small>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span class="rating-badge" :class="getRatingClass(area.promedio)">
-                                                    {{ area.promedio.toFixed(1) }}
-                                                </span>
-                                            </td>
-                                            <td>{{ area.total_respuestas }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <div class="chart-container">
+                                <canvas ref="distribucionNPSChart"></canvas>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Distribución Respuestas -->
-                        <div class="table-card">
-                            <div class="table-header">
-                                <h3>Distribución de Respuestas</h3>
+                    <!-- Relación Nivel vs Cantidad de Encuestas -->
+                    <div class="charts-grid" v-for="tipo in tiposIndicadoresActivos" :key="tipo">
+                        <div class="chart-card full-width">
+                            <div class="chart-header">
+                                <h3>Relación Nivel de {{ tipo.toUpperCase() }} vs Cantidad de Encuestas</h3>
+                                <p>Por día o por mes según el rango seleccionado</p>
                             </div>
-                            <div class="table-container">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Tipo Pregunta</th>
-                                            <th>Cantidad</th>
-                                            <th>Porcentaje</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="tipo in estadisticas.distribucionTipos" :key="tipo.tipo">
-                                            <td>
-                                                <span class="tipo-badge" :class="getTipoBadgeClass(tipo.tipo)">
-                                                    {{ getTipoTexto(tipo.tipo) }}
-                                                </span>
-                                            </td>
-                                            <td>{{ tipo.cantidad }}</td>
-                                            <td>{{ tipo.porcentaje }}%</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <div class="chart-container">
+                                <canvas :ref="`relacionChart_${tipo}`"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Indicadores y Dimensiones -->
+                    <div class="charts-grid" v-for="tipo in tiposIndicadoresActivos" :key="'dim-' + tipo">
+                        <div class="chart-card full-width" v-if="estadisticas.indicadoresDimensiones && estadisticas.indicadoresDimensiones[tipo] && estadisticas.indicadoresDimensiones[tipo].length > 0">
+                            <div class="chart-header">
+                                <h3>{{ tipo.toUpperCase() }} - Dimensiones</h3>
+                                <p>Distribución por dimensión</p>
+                            </div>
+                            <div class="chart-container">
+                                <canvas :ref="`dimensionesChart_${tipo}`"></canvas>
                             </div>
                         </div>
                     </div>
@@ -349,8 +393,8 @@ export default {
             
             // Filtros
             filters: {
-                fechaInicio: this.getFechaInicioMes(),
-                fechaFin: this.getFechaHoy(),
+                fechaInicio: '',
+                fechaFin: '',
                 areaId: '',
                 nivelId: '',
                 tipoCalificacion: '' // FCR, CSAT, NPS
@@ -361,19 +405,18 @@ export default {
             nivelesCalificacion: [],
             estadisticas: {
                 totales: {},
-                distribucionNiveles: [],
-                calificacionesAreas: [],
-                preguntasPopulares: [],
-                evolucionTemporal: [],
-                topAreas: [],
-                distribucionTipos: []
+                nivelIndicador: {},
+                encuestasPorArea: [],
+                relacionNivelEncuestas: {},
+                indicadoresDimensiones: {},
+                distribucionNPS: {}
             },
             
             // Charts
-            nivelesChart: null,
-            areasChart: null,
-            preguntasChart: null,
-            evolucionChart: null
+            encuestasAreaChart: null,
+            distribucionNPSChart: null,
+            relacionChartRefs: {},
+            dimensionesChartRefs: {}
         }
     },
     computed: {
@@ -413,6 +456,13 @@ export default {
             return areasUnicas.sort((a, b) => {
                 return a.nombre.localeCompare(b.nombre);
             });
+        },
+        // Tipos de indicadores activos según filtro
+        tiposIndicadoresActivos() {
+            if (this.filters.tipoCalificacion) {
+                return [this.filters.tipoCalificacion];
+            }
+            return ['csat', 'fcr', 'nps'];
         }
     },
     async mounted() {
@@ -473,10 +523,31 @@ export default {
                 const response = await fetch(`/api/estadisticas?${params.toString()}`);
                 if (response.ok) {
                     this.estadisticas = await response.json();
+                    console.log('📊 Estadísticas recibidas (completo):', JSON.stringify(this.estadisticas, null, 2));
+                    console.log('📊 Nivel Indicador:', this.estadisticas.nivelIndicador);
+                    console.log('📊 CSAT:', this.estadisticas.nivelIndicador?.csat);
+                    console.log('📊 FCR:', this.estadisticas.nivelIndicador?.fcr);
+                    console.log('📊 NPS:', this.estadisticas.nivelIndicador?.nps);
+                    
+                    // Verificar valores específicos
+                    if (this.estadisticas.nivelIndicador) {
+                        Object.keys(this.estadisticas.nivelIndicador).forEach(tipo => {
+                            const indicador = this.estadisticas.nivelIndicador[tipo];
+                            console.log(`📊 Indicador ${tipo}:`, {
+                                valor: indicador?.valor,
+                                totalRespuestas: indicador?.totalRespuestas,
+                                tipo: typeof indicador,
+                                esObjeto: typeof indicador === 'object'
+                            });
+                        });
+                    }
+                    
                     this.$nextTick(() => {
                         this.renderizarGraficos();
                     });
                 } else {
+                    const errorText = await response.text();
+                    console.error('❌ Error en respuesta:', response.status, errorText);
                     throw new Error('Error al cargar estadísticas');
                 }
             } catch (error) {
@@ -496,37 +567,209 @@ export default {
             return nombres[tipo] || tipo.toUpperCase();
         },
 
+        mostrarIndicador(tipo) {
+            if (this.filters.tipoCalificacion) {
+                return this.filters.tipoCalificacion === tipo;
+            }
+            return true;
+        },
+
+        getColorSemaforo(valor) {
+            if (valor >= 70) return 'semaforo-verde';
+            if (valor >= 50) return 'semaforo-amarillo';
+            return 'semaforo-rojo';
+        },
+
+        getValorIndicador(tipo) {
+            try {
+                if (!this.estadisticas || !this.estadisticas.nivelIndicador) {
+                    console.warn(`⚠️ nivelIndicador no existe en estadisticas para ${tipo}`);
+                    return 0;
+                }
+                
+                const indicador = this.estadisticas.nivelIndicador[tipo];
+                console.log(`📊 getValorIndicador(${tipo}):`, indicador);
+                console.log(`📊 Tipo de indicador:`, typeof indicador);
+                
+                if (typeof indicador === 'object' && indicador !== null) {
+                    const valor = indicador.valor !== undefined && indicador.valor !== null 
+                        ? parseFloat(indicador.valor) 
+                        : 0;
+                    console.log(`✅ Valor numérico para ${tipo}:`, valor);
+                    return isNaN(valor) ? 0 : Math.round(valor * 10) / 10; // Redondear a 1 decimal
+                }
+                
+                // Compatibilidad con formato anterior (valor directo)
+                if (indicador !== undefined && indicador !== null) {
+                    const valor = parseFloat(indicador);
+                    return isNaN(valor) ? 0 : Math.round(valor * 10) / 10;
+                }
+                
+                console.warn(`⚠️ No se encontró valor para ${tipo}`);
+                return 0;
+            } catch (error) {
+                console.error(`❌ Error en getValorIndicador(${tipo}):`, error);
+                return 0;
+            }
+        },
+
+        getTotalRespuestas(tipo) {
+            try {
+                if (!this.estadisticas || !this.estadisticas.nivelIndicador) {
+                    return 0;
+                }
+                
+                const indicador = this.estadisticas.nivelIndicador[tipo];
+                if (typeof indicador === 'object' && indicador !== null) {
+                    const total = indicador.totalRespuestas !== undefined && indicador.totalRespuestas !== null
+                        ? parseInt(indicador.totalRespuestas)
+                        : 0;
+                    return isNaN(total) ? 0 : total;
+                }
+                return 0;
+            } catch (error) {
+                console.error(`❌ Error en getTotalRespuestas(${tipo}):`, error);
+                return 0;
+            }
+        },
+
+        getSemaforoPath(valor) {
+            // Asegurar que el valor sea un número válido
+            const numValor = typeof valor === 'number' ? valor : parseFloat(valor) || 0;
+            
+            // Crear un arco semicircular basado en el valor (0-100)
+            const centerX = 100;
+            const centerY = 100;
+            const radius = 85;
+            const startAngle = Math.PI; // 180 grados (izquierda)
+            const endAngle = 0; // 0 grados (derecha)
+            
+            // Calcular el ángulo actual basado en el valor (asegurar que esté entre 0 y 100)
+            const percentage = Math.min(100, Math.max(0, numValor)) / 100;
+            const currentAngle = startAngle - (startAngle - endAngle) * percentage;
+            
+            // Punto de inicio (extremo izquierdo)
+            const x1 = centerX + radius * Math.cos(startAngle);
+            const y1 = centerY + radius * Math.sin(startAngle);
+            
+            // Punto final basado en el porcentaje
+            const x2 = centerX + radius * Math.cos(currentAngle);
+            const y2 = centerY + radius * Math.sin(currentAngle);
+            
+            // Determinar si necesitamos un arco grande o pequeño
+            const largeArc = percentage > 0.5 ? 1 : 0;
+            
+            // Crear el path: arco desde izquierda hasta el punto actual, luego línea al centro
+            return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 0 ${x2} ${y2} L ${centerX} ${centerY} Z`;
+        },
+
+        getSemaforoColor(valor) {
+            // Asegurar que el valor sea un número válido
+            const numValor = typeof valor === 'number' ? valor : parseFloat(valor) || 0;
+            if (numValor >= 70) return '#10b981'; // Verde
+            if (numValor >= 50) return '#f59e0b'; // Amarillo
+            return '#ef4444'; // Rojo
+        },
+
         renderizarGraficos() {
             this.destruirGraficos();
             
-            // Gráfico de distribución por niveles
-            this.renderizarGraficoNiveles();
+            // Gráfico de encuestas por área
+            this.renderizarGraficoEncuestasArea();
             
-            // Gráfico de calificaciones por área
-            this.renderizarGraficoAreas();
+            // Gráfico de distribución NPS
+            if (this.mostrarIndicador('nps')) {
+                this.renderizarGraficoDistribucionNPS();
+            }
             
-            // Gráfico de preguntas más respondidas
-            this.renderizarGraficoPreguntas();
+            // Gráficos de relación nivel vs encuestas
+            this.tiposIndicadoresActivos.forEach(tipo => {
+                this.renderizarGraficoRelacion(tipo);
+            });
             
-            // Gráfico de evolución temporal
-            this.renderizarGraficoEvolucion();
+            // Gráficos de dimensiones
+            this.tiposIndicadoresActivos.forEach(tipo => {
+                this.renderizarGraficoDimensiones(tipo);
+            });
         },
 
-        renderizarGraficoNiveles() {
-            const ctx = this.$refs.nivelesChart;
+        renderizarGraficoEncuestasArea() {
+            const ctx = this.$refs.encuestasAreaChart;
             if (!ctx) return;
 
-            const data = this.estadisticas.distribucionNiveles || [];
+            const data = this.estadisticas.encuestasPorArea || [];
             
-            this.nivelesChart = new Chart(ctx, {
+            // Agrupar por área y tipo
+            const areasMap = {};
+            const tipos = ['csat', 'fcr', 'nps'];
+            
+            data.forEach(item => {
+                if (!areasMap[item.area_nombre]) {
+                    areasMap[item.area_nombre] = { csat: 0, fcr: 0, nps: 0 };
+                }
+                if (item.tipo_calificacion && areasMap[item.area_nombre][item.tipo_calificacion] !== undefined) {
+                    areasMap[item.area_nombre][item.tipo_calificacion] = item.cantidad_encuestas;
+                }
+            });
+
+            const labels = Object.keys(areasMap);
+            const datasets = tipos
+                .filter(tipo => this.mostrarIndicador(tipo))
+                .map((tipo, index) => {
+                    const colors = ['#4f46e5', '#10b981', '#f59e0b'];
+                    return {
+                        label: tipo.toUpperCase(),
+                        data: labels.map(area => areasMap[area][tipo] || 0),
+                        backgroundColor: colors[index],
+                        borderColor: colors[index],
+                        borderWidth: 1,
+                        borderRadius: 4
+                    };
+                });
+            
+            this.encuestasAreaChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        },
+
+        renderizarGraficoDistribucionNPS() {
+            const ctx = this.$refs.distribucionNPSChart;
+            if (!ctx) return;
+
+            const data = this.estadisticas.distribucionNPS || {};
+            
+            this.distribucionNPSChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: data.map(item => item.nivel),
+                    labels: ['Promotores (9-10)', 'Pasivos (7-8)', 'Detractores (1-6)'],
                     datasets: [{
-                        data: data.map(item => item.cantidad),
-                        backgroundColor: [
-                            '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'
+                        data: [
+                            data.promotores || 0,
+                            data.pasivos || 0,
+                            data.detractores || 0
                         ],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
                         borderWidth: 2,
                         borderColor: '#fff'
                     }]
@@ -535,20 +778,14 @@ export default {
                     responsive: true,
                     plugins: {
                         legend: {
-                            position: 'bottom',
-                            labels: {
-                                padding: 20,
-                                usePointStyle: true
-                            }
+                            position: 'bottom'
                         },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.raw || 0;
                                     const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = Math.round((value / total) * 100);
-                                    return `${label}: ${value} (${percentage}%)`;
+                                    const percentage = total > 0 ? Math.round((context.raw / total) * 100) : 0;
+                                    return `${context.label}: ${context.raw} (${percentage}%)`;
                                 }
                             }
                         }
@@ -557,157 +794,199 @@ export default {
             });
         },
 
-        renderizarGraficoAreas() {
-            const ctx = this.$refs.areasChart;
+        renderizarGraficoRelacion(tipo) {
+            const refName = `relacionChart_${tipo}`;
+            const refs = this.$refs[refName];
+            if (!refs) return;
+            
+            const ctx = Array.isArray(refs) ? refs[0] : refs;
             if (!ctx) return;
 
-            const data = this.estadisticas.calificacionesAreas || [];
+            const data = this.estadisticas.relacionNivelEncuestas?.[tipo] || [];
             
-            this.areasChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.map(item => item.area_nombre),
-                    datasets: [{
-                        label: 'Promedio de Calificación',
-                        data: data.map(item => item.promedio),
-                        backgroundColor: '#4f46e5',
-                        borderColor: '#3730a3',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 10,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `Promedio: ${context.raw.toFixed(1)}`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        },
+            // Destruir gráfico anterior si existe
+            if (this.relacionChartRefs[`_chart_${tipo}`]) {
+                this.relacionChartRefs[`_chart_${tipo}`].destroy();
+            }
 
-        renderizarGraficoPreguntas() {
-            const ctx = this.$refs.preguntasChart;
-            if (!ctx) return;
+            const labels = data.map(item => this.formatearFecha(item.fecha));
+            const cantidadEncuestas = data.map(item => item.cantidad_encuestas || 0);
+            const porcentajes = data.map(item => item.porcentaje || 0);
 
-            const data = this.estadisticas.preguntasPopulares || [];
-            
-            this.preguntasChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.map(item => this.acortarTexto(item.pregunta_texto, 40)),
-                    datasets: [{
-                        label: 'Respuestas',
-                        data: data.map(item => item.total_respuestas),
-                        backgroundColor: '#10b981',
-                        borderColor: '#059669',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                title: (context) => {
-                                    const index = context[0].dataIndex;
-                                    return data[index].pregunta_texto;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        },
-
-        renderizarGraficoEvolucion() {
-            const ctx = this.$refs.evolucionChart;
-            if (!ctx) return;
-
-            const data = this.estadisticas.evolucionTemporal || [];
-            
-            this.evolucionChart = new Chart(ctx, {
+            this.relacionChartRefs[`_chart_${tipo}`] = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: data.map(item => item.fecha),
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Cantidad de Encuestas',
+                            data: cantidadEncuestas,
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                            borderWidth: 2,
+                            yAxisID: 'y',
+                            tension: 0.4
+                        },
+                        {
+                            label: `Porcentaje de ${tipo.toUpperCase()} (%)`,
+                            data: porcentajes,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            yAxisID: 'y1',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Cantidad de Encuestas'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Porcentaje (%)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        },
+
+        renderizarGraficoDimensiones(tipo) {
+            const refName = `dimensionesChart_${tipo}`;
+            const refs = this.$refs[refName];
+            if (!refs) return;
+            
+            const ctx = Array.isArray(refs) ? refs[0] : refs;
+            if (!ctx) return;
+
+            const dimensiones = this.estadisticas.indicadoresDimensiones?.[tipo] || [];
+            if (dimensiones.length === 0) return;
+
+            // Destruir gráfico anterior si existe
+            if (this.dimensionesChartRefs[`_chart_${tipo}`]) {
+                this.dimensionesChartRefs[`_chart_${tipo}`].destroy();
+            }
+
+            // Preparar datos para el gráfico
+            const labels = [];
+            const dataValues = [];
+
+            dimensiones.forEach(dim => {
+                if (dim.tipo === 'opcion_unica' && dim.respuestas) {
+                    dim.respuestas.forEach(resp => {
+                        labels.push(`${dim.dimension} - ${resp.opcion_seleccionada}`);
+                        dataValues.push(resp.cantidad);
+                    });
+                } else {
+                    labels.push(dim.dimension);
+                    dataValues.push(dim.total || 0);
+                }
+            });
+
+            this.dimensionesChartRefs[`_chart_${tipo}`] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
                     datasets: [{
-                        label: 'Promedio de Calificaciones',
-                        data: data.map(item => item.promedio),
-                        borderColor: '#8b5cf6',
-                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4
+                        label: 'Cantidad de Respuestas',
+                        data: dataValues,
+                        backgroundColor: '#8b5cf6',
+                        borderColor: '#7c3aed',
+                        borderWidth: 1,
+                        borderRadius: 4
                     }]
                 },
                 options: {
                     responsive: true,
+                    indexAxis: 'y',
                     scales: {
-                        y: {
+                        x: {
                             beginAtZero: true,
-                            max: 10,
                             ticks: {
                                 stepSize: 1
                             }
                         }
                     },
                     plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `Promedio: ${context.raw.toFixed(1)}`;
-                                }
-                            }
+                        legend: {
+                            display: false
                         }
                     }
                 }
             });
+        },
+
+        formatearFecha(fecha) {
+            if (!fecha) return '';
+            // Si es formato YYYY-MM, formatear como "Oct 2024"
+            if (fecha.match(/^\d{4}-\d{2}$/)) {
+                const [year, month] = fecha.split('-');
+                const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                return `${meses[parseInt(month) - 1]} ${year}`;
+            }
+            // Si es formato YYYY-MM-DD, formatear como "1 Oct"
+            if (fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const date = new Date(fecha);
+                const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                return `${date.getDate()} ${meses[date.getMonth()]}`;
+            }
+            return fecha;
         },
 
         destruirGraficos() {
-            if (this.nivelesChart) {
-                this.nivelesChart.destroy();
-                this.nivelesChart = null;
+            if (this.encuestasAreaChart) {
+                this.encuestasAreaChart.destroy();
+                this.encuestasAreaChart = null;
             }
-            if (this.areasChart) {
-                this.areasChart.destroy();
-                this.areasChart = null;
+            if (this.distribucionNPSChart) {
+                this.distribucionNPSChart.destroy();
+                this.distribucionNPSChart = null;
             }
-            if (this.preguntasChart) {
-                this.preguntasChart.destroy();
-                this.preguntasChart = null;
-            }
-            if (this.evolucionChart) {
-                this.evolucionChart.destroy();
-                this.evolucionChart = null;
-            }
+            
+            // Destruir gráficos de relación
+            Object.keys(this.relacionChartRefs).forEach(key => {
+                if (this.relacionChartRefs[key]) {
+                    this.relacionChartRefs[key].destroy();
+                }
+            });
+            this.relacionChartRefs = {};
+            
+            // Destruir gráficos de dimensiones
+            Object.keys(this.dimensionesChartRefs).forEach(key => {
+                if (this.dimensionesChartRefs[key]) {
+                    this.dimensionesChartRefs[key].destroy();
+                }
+            });
+            this.dimensionesChartRefs = {};
         },
 
         // Métodos utilitarios
@@ -1599,6 +1878,91 @@ export default {
 .chart-container {
     position: relative;
     height: 300px;
+}
+
+/* Semáforo Semicircular */
+.semaforo-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    padding: 1rem;
+}
+
+.semaforo-semicircular-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+}
+
+.semaforo-semicircular {
+    position: relative;
+    width: 200px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.semaforo-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.semaforo-valor {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -20%);
+    font-size: 3rem;
+    font-weight: 700;
+    color: #1f2937;
+    z-index: 10;
+    text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8);
+}
+
+.semaforo-respuestas {
+    font-size: 0.9rem;
+    color: #6b7280;
+    font-weight: 500;
+    text-align: center;
+}
+
+/* Botones de Selección de Indicador */
+.indicador-selector {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 2rem 0;
+    flex-wrap: wrap;
+}
+
+.btn-indicador {
+    padding: 0.75rem 1.5rem;
+    border: 2px solid #e5e7eb;
+    background: white;
+    color: #6b7280;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.btn-indicador:hover {
+    background: #f3f4f6;
+    border-color: #4f46e5;
+    color: #4f46e5;
+}
+
+.btn-indicador.active {
+    background: #4f46e5;
+    color: white;
+    border-color: #4f46e5;
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.3);
 }
 
 /* Tablas */
