@@ -7,9 +7,6 @@
                     <h1 class="page-title">
                         <i class="fas fa-building"></i>
                         Gestión de Áreas
-                        <span v-if="sedeActual" class="sede-badge">
-                            - {{ sedeActual.nombre }}
-                        </span>
                     </h1>
                     <p class="page-subtitle">
                         {{ sedeActual 
@@ -23,19 +20,31 @@
                     Nueva Área
                 </button>
             </div>
-        </div>
+        </div>      
 
         <!-- Filters Section -->
-        <div class="filters-section">
-            <div class="filters-container">
-                <div class="filter-stats">
-                    <span class="stats-item">
-                        <i class="fas fa-list"></i>
-                        {{ areas.length }} áreas
-                    </span>
+                <div class="filters-section">
+                    <div class="filters-container">
+                        <div class="filter-group" style="flex-direction: row;">
+                            <label class="filter-label">
+                                <i class="fas fa-building"></i>
+                                Área
+                            </label>
+                            <select v-model="filtroNombreArea" class="form-select">
+                                <option value="">Todas</option>
+                                <option v-for="item in nombresAreasUnicos" :key="item.nombre" :value="item.nombre">
+                                    {{ item.display }}
+                                </option>
+                            </select>
+                        </div>                        
+                        <div class="filter-stats">
+                            <span class="stats-item">
+                                <i class="fas fa-list"></i>
+                                {{ areasFiltradas.length }} áreas
+                            </span>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
 
         <!-- Content Section -->
         <div class="content-section">
@@ -67,7 +76,7 @@
 
             <!-- Areas Grid -->
             <div v-else class="areas-grid">
-                <div v-for="area in areas" :key="area.id" class="area-card">
+                <div v-for="area in areasFiltradas" :key="area.id" class="area-card">
                     <div class="card-header">
                         <div class="area-code">{{ area.codigo }}</div>
                         <div class="area-status">
@@ -81,7 +90,7 @@
                     <div class="card-content">                        
                         <div class="area-meta">
                             <div class="meta-item">
-                                <i class="fas fa-hashtag"></i>
+                                <i class="fas fa-book-open"></i>
                                 <span> <strong>Nombre:</strong> {{ area.nombre }}</span>
                             </div>
                             <div class="meta-item">
@@ -294,6 +303,7 @@
 </template>
 
 <script>
+import Swal from 'sweetalert2';
 export default {
     name: 'AreasManagement',
     data() {
@@ -305,6 +315,8 @@ export default {
             editingArea: null,
             savingArea: false,
             sedeActual: null, // ✅ Sede actual desde el store
+            // 🔎 Filtros
+            filtroNombreArea: '',
             areaForm: {
                 nombre: '',
                 codigo: '',
@@ -317,6 +329,29 @@ export default {
                 permite_nps: false,
                 permite_fcr: false
             }
+        }
+    },
+    computed: {
+        // Lista de nombres únicos de áreas (para el select)
+        nombresAreasUnicos() {
+            const areasPorNombre = {};
+            this.areas.forEach(a => {
+                if (!areasPorNombre[a.nombre]) {
+                    areasPorNombre[a.nombre] = {
+                        display: `${a.codigo} - ${a.nombre}`,
+                        nombre: a.nombre
+                    };
+                }
+            });
+            return Object.values(areasPorNombre).sort((a, b) => a.display.localeCompare(b.display));
+        },
+        // Resultado final a mostrar en la grilla
+        areasFiltradas() {
+            // Filtro por nombre de área (exacto por opción seleccionada)
+            if (this.filtroNombreArea) {
+                return this.areas.filter(a => a.nombre === this.filtroNombreArea);
+            }
+            return this.areas;
         }
     },
     async mounted() {
@@ -410,7 +445,12 @@ export default {
                 }
             } catch (error) {
                 console.error('❌ Error loading areas:', error);
-                alert('Error al cargar las áreas: ' + error.message);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al cargar las áreas: ' + error.message,
+                    confirmButtonColor: '#ef4444'
+                });
             } finally {
                 this.loadingAreas = false;
             }
@@ -511,7 +551,13 @@ export default {
                     console.log('✅ Áreas creadas:', areasCreadas);
                     this.closeModal();
                     await this.loadAreas();
-                    alert(`Área creada en ${areasCreadas} sede(s) correctamente`);
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: `Área creada en ${areasCreadas} sede(s) correctamente`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
                     
                 } else if (this.editingArea) {
                     // 🔥 MODO EDICIÓN: Solo actualizar el registro actual de esta área específica
@@ -547,7 +593,11 @@ export default {
                         
                         this.closeModal();
                         await this.loadAreas();
-                        alert('Área actualizada correctamente');
+                        Swal.fire({
+                            title: 'Área actualizada correctamente',
+                            icon: 'success',
+                            timer: 1500
+                        });
                     } else {
                         const errorData = await response.json();
                         throw new Error(errorData?.error || errorData?.message || `Error ${response.status}`);
@@ -587,7 +637,13 @@ export default {
                         
                         this.closeModal();
                         await this.loadAreas();
-                        alert('Área creada correctamente');
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Éxito!',
+                            text: 'Área creada correctamente',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
                     } else {
                         const errorData = await response.json();
                         throw new Error(errorData?.error || errorData?.message || `Error ${response.status}`);
@@ -595,7 +651,12 @@ export default {
                 }
             } catch (error) {
                 console.error('❌ Error guardando área:', error);
-                alert('Error: ' + error.message);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error: ' + error.message,
+                    confirmButtonColor: '#ef4444'
+                });
             } finally {
                 this.savingArea = false;
             }
@@ -603,23 +664,49 @@ export default {
 
         validateForm() {
             if (!this.areaForm.nombre.trim()) {
-                alert('Por favor ingresa el nombre del área');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor ingresa el nombre del área',
+                    confirmButtonColor: '#3b82f6'
+                });
                 return false;
             }
             if (!this.areaForm.codigo.trim()) {
-                alert('Por favor ingresa el código del área');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor ingresa el código del área',
+                    confirmButtonColor: '#3b82f6'
+                });
                 return false;
             }
             // 🔥 NUEVO: Validar sedes seleccionadas
             if (!this.areaForm.sedesSeleccionadas || this.areaForm.sedesSeleccionadas.length === 0) {
-                alert('Por favor selecciona al menos una sede');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Selección requerida',
+                    text: 'Por favor selecciona al menos una sede',
+                    confirmButtonColor: '#3b82f6'
+                });
                 return false;
             }
             return true;
         },
 
         async toggleAreaStatus(area) {
-            if (!confirm(`¿Estás seguro de ${area.is_active ? 'desactivar' : 'activar'} esta área?`)) return;
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: `¿Estás seguro de ${area.is_active ? 'desactivar' : 'activar'} esta área?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!result.isConfirmed) return;
 
             try {
                 const response = await fetch(`/api/areas/${area.id}/toggle`, {
@@ -637,12 +724,28 @@ export default {
                 }
             } catch (error) {
                 console.error('Error toggling area:', error);
-                alert('Error al cambiar el estado del área: ' + error.message);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al cambiar el estado del área: ' + error.message,
+                    confirmButtonColor: '#ef4444'
+                });
             }
         },
 
         async deleteArea(area) {
-            if (!confirm('¿Estás seguro de eliminar esta área? Esta acción no se puede deshacer.')) return;
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: 'Esta acción no se puede deshacer.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!result.isConfirmed) return;
 
             try {
                 const response = await fetch(`/api/areas/${area.id}`, {
@@ -654,14 +757,25 @@ export default {
 
                 if (response.ok) {
                     await this.loadAreas();
-                    alert('Área eliminada correctamente');
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Eliminado!',
+                        text: 'Área eliminada correctamente',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
                 } else {
                     const errorData = await response.json();
                     throw new Error(errorData.error || errorData.message || 'Error al eliminar');
                 }
             } catch (error) {
                 console.error('Error deleting area:', error);
-                alert('Error al eliminar el área: ' + error.message);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al eliminar el área: ' + error.message,
+                    confirmButtonColor: '#ef4444'
+                });
             }
         },
 

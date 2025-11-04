@@ -174,8 +174,8 @@
                     </button>
                 </div>
 
-                <div class="modal-body">
-                    <p class="modal-subtitle">
+                <div class="modal-body" style="margin-bottom: 5%;">
+                    <p class="modal-subtitle" style="justify-self: center;">
                         Elige el tipo de calificación que quieres crear
                     </p>
                     
@@ -217,7 +217,7 @@
                         <i :class="esEdicionPregunta ? 'fas fa-edit' : 'fas fa-plus'"></i>
                         {{ esEdicionPregunta ? 'Editar Pregunta' : 'Nueva Pregunta' }}
                     </h2>
-                    <button @click="cerrarModalPregunta" class="modal-close">
+                    <button type="button" @click="cerrarModalPregunta" class="modal-close">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -952,9 +952,9 @@ export default {
                 inicio: 0,
                 fin: 6,
                 activo: true,
-                    pregunta_texto: '',
-                    tipo: 'opcion_unica',
-                    opciones: [{ texto: '' }, { texto: '' }]
+                pregunta_texto: '',
+                tipo: 'opcion_unica',
+                opciones: [{ texto: '' }, { texto: '' }]
             },
             mostrandoConfiguracionRangos: false,
             // 🔥 NUEVO: Bandera para evitar loops en el watcher de opciones
@@ -1162,6 +1162,35 @@ export default {
     },
 
     methods: {
+        // ✅ Método auxiliar para verificar si una opción es "Otro"
+        esOpcionOtro(opcionTexto) {
+            if (!opcionTexto) return false;
+            return opcionTexto.toLowerCase().includes('otro') || opcionTexto.toLowerCase().includes('especifique');
+        },
+
+        // ✅ Cerrar modal de pregunta
+        cerrarModalPregunta() {
+            this.mostrarModalPregunta = false;
+            this.esEdicionPregunta = false;
+            this.resetearConfiguracionRangos();
+            this.tipoSeleccionado = null;
+            this.areasSeleccionadas = [];
+            this.sedesSeleccionadas = [];
+            this.preguntaForm = {
+                id: null,
+                pregunta: '',
+                tipo: 'opcion_unica',
+                tipo_pregunta: null,
+                area_id: null,
+                niveles_calificacion_id: '',
+                sede_id: this.sedeActual ? this.sedeActual.id : null,
+                opciones: [{ texto: '' }, { texto: '' }],
+                is_active: true,
+                areas_participantes: [],
+                sede_participante: null
+            };
+        },
+
         // ✅ MÉTODOS EXISTENTES (actualizados)
         suscribirACambiosDeSede() {
             if (window.SedeStore) {
@@ -1265,65 +1294,56 @@ export default {
         },
 
         // 🔥 NUEVO: Cargar subpreguntas para todas las opciones de una pregunta
-        // ✅ AGREGAR EN data()
-data() {
-    return {
-        subpreguntasCache: new Map(), // Cache para evitar peticiones duplicadas
-        cargandoSubpreguntas: false,
-        timeoutSubpreguntas: null
-    }
-},
+        // ✅ REEMPLAZAR método problemático
+        async cargarSubpreguntasParaPregunta(pregunta) {
+            // ⏰ DEBOUNCE: Esperar 100ms antes de cargar
+            if (this.timeoutSubpreguntas) {
+                clearTimeout(this.timeoutSubpreguntas);
+            }
+            
+            this.timeoutSubpreguntas = setTimeout(async () => {
+                if (this.cargandoSubpreguntas) return;
+                
+                this.cargandoSubpreguntas = true;
+                console.log('🔍 Cargando subpreguntas para pregunta:', pregunta.id);
+                
+                const opcionesConSubpreguntas = pregunta.opciones.filter(op => op.tiene_subpreguntas);
+                
+                // ✅ Cargar solo las necesarias, con cache
+                for (const opcion of opcionesConSubpreguntas) {
+                    await this.cargarSubpreguntasParaOpcionConCache(opcion.id);
+                }
+                
+                this.cargandoSubpreguntas = false;
+            }, 100);
+        },
 
-// ✅ REEMPLAZAR método problemático
-async cargarSubpreguntasParaPregunta(pregunta) {
-    // ⏰ DEBOUNCE: Esperar 100ms antes de cargar
-    if (this.timeoutSubpreguntas) {
-        clearTimeout(this.timeoutSubpreguntas);
-    }
-    
-    this.timeoutSubpreguntas = setTimeout(async () => {
-        if (this.cargandoSubpreguntas) return;
-        
-        this.cargandoSubpreguntas = true;
-        console.log('🔍 Cargando subpreguntas para pregunta:', pregunta.id);
-        
-        const opcionesConSubpreguntas = pregunta.opciones.filter(op => op.tiene_subpreguntas);
-        
-        // ✅ Cargar solo las necesarias, con cache
-        for (const opcion of opcionesConSubpreguntas) {
-            await this.cargarSubpreguntasParaOpcionConCache(opcion.id);
-        }
-        
-        this.cargandoSubpreguntas = false;
-    }, 100);
-},
-
-// ✅ MÉTODO CON CACHE
-async cargarSubpreguntasParaOpcionConCache(opcionId) {
-    // Verificar cache primero
-    if (this.subpreguntasCache.has(opcionId)) {
-        return this.subpreguntasCache.get(opcionId);
-    }
-    
-    try {
-        console.log('📡 Cargando subpreguntas para opción:', opcionId);
-        const response = await fetch(`/api/subpreguntas/${opcionId}`);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const subpreguntas = await response.json();
-        
-        // Guardar en cache
-        this.subpreguntasCache.set(opcionId, subpreguntas);
-        
-        return subpreguntas;
-    } catch (error) {
-        console.error('❌ Error cargando subpreguntas:', error);
-        return [];
-    }
-},
+        // ✅ MÉTODO CON CACHE
+        async cargarSubpreguntasParaOpcionConCache(opcionId) {
+            // Verificar cache primero
+            if (this.subpreguntasCache.has(opcionId)) {
+                return this.subpreguntasCache.get(opcionId);
+            }
+            
+            try {
+                console.log('📡 Cargando subpreguntas para opción:', opcionId);
+                const response = await fetch(`/api/subpreguntas/${opcionId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const subpreguntas = await response.json();
+                
+                // Guardar en cache
+                this.subpreguntasCache.set(opcionId, subpreguntas);
+                
+                return subpreguntas;
+            } catch (error) {
+                console.error('❌ Error cargando subpreguntas:', error);
+                return [];
+            }
+        },
 
         // 🔥 NUEVO: Cargar subpreguntas reales desde la API
         async cargarSubpreguntasParaOpcion(opcion) {
@@ -1816,9 +1836,10 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 
                 // Asegurar mínimo 2 opciones
                 if (this.preguntaForm.opciones.length < 2) {
-                    this.preguntaForm.opciones.push(
-                        ...Array(2 - this.preguntaForm.opciones.length).fill(null).map(() => ({ texto: '' }))
-                    );
+                    const opcionesNecesarias = 2 - this.preguntaForm.opciones.length;
+                    for (let i = 0; i < opcionesNecesarias; i++) {
+                        this.preguntaForm.opciones.push({ texto: '' });
+                    }
                 }
             }
             
@@ -1873,7 +1894,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 }
                 
                 // Agregar la nueva opción
-            this.preguntaForm.opciones.push({ texto: '' });
+                this.preguntaForm.opciones.push({ texto: '' });
                 
                 // Si había opción "Otro", agregarla al final
                 if (opcionOtro) {
@@ -1893,7 +1914,7 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                 
                 if (!esOtraOpcionOtro) {
                     // Solo eliminar si NO es "Otro"
-                this.preguntaForm.opciones.splice(index, 1);
+                    this.preguntaForm.opciones.splice(index, 1);
                     
                     // 🔥 NUEVO: Si es tipo opcion_unica_texto_libre, asegurar que "Otro" esté al final
                     if (this.preguntaForm.tipo === 'opcion_unica_texto_libre') {
@@ -2354,9 +2375,21 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
 
         // 🔥 NUEVO: Eliminar subpregunta
         async eliminarSubpregunta(subpregunta) {
-            if (confirm('¿Estás seguro de eliminar esta subpregunta?')) {
-                try {
-                    const response = await fetch(`/api/subpreguntas/${subpregunta.id}`, {
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: '¿Estás seguro de eliminar esta subpregunta?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!result.isConfirmed) return;
+
+            try {
+                const response = await fetch(`/api/subpreguntas/${subpregunta.id}`, {
                         method: 'DELETE',
                         headers: {
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
@@ -2382,7 +2415,8 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
                     console.error('Error eliminando subpregunta:', error);
                     this.mostrarMensaje('Error al eliminar la subpregunta', 'error');
                 }
-            }
+            
+            
         },
 
         // 🔥 NUEVO: Cambiar tipo de subpregunta
@@ -2782,11 +2816,22 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
         },
 
         // 🔥 NUEVO: Eliminar rango
-        eliminarRango(index) {
-            if (confirm('¿Estás seguro de eliminar este rango? Esta acción no se puede deshacer.')) {
-                this.configuracionRangos.splice(index, 1);
-                console.log(`🗑️ Rango eliminado. Rangos restantes: ${this.configuracionRangos.length}`);
-            }
+        async eliminarRango(index) {
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: '¿Estás seguro de eliminar este rango? Esta acción no se puede deshacer.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!result.isConfirmed) return;
+
+            this.configuracionRangos.splice(index, 1);
+            console.log(`🗑️ Rango eliminado. Rangos restantes: ${this.configuracionRangos.length}`);
         },
 
         // 🔥 CORRECCIÓN: Validar rango mejorado (evitar solapamientos y mantener 0-10)
@@ -2919,16 +2964,19 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
             }
         },
 
-
-        esOpcionOtro(opcionTexto) {
-            if (!opcionTexto) return false;
-            return opcionTexto.toLowerCase().includes('otro') || opcionTexto.toLowerCase().includes('especifique');
-        },
-
         async togglePreguntaStatus(pregunta) {
-            if (!confirm(`¿Estás seguro de ${pregunta.is_active ? 'desactivar' : 'activar'} esta pregunta?`)) {
-                return;
-            }
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: `¿Estás seguro de ${pregunta.is_active ? 'desactivar' : 'activar'} esta pregunta?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!result.isConfirmed) return;
             try {
                 const response = await fetch(`/api/preguntas/${pregunta.id}/toggle`, {
                     method: 'PUT',
@@ -2953,167 +3001,162 @@ async cargarSubpreguntasParaOpcionConCache(opcionId) {
         },
 
         // ✅ MÉTODO MEJORADO: Eliminar pregunta con validación completa
-async eliminarPregunta(pregunta) {
-    try {
-        console.log('🔍 Verificando eliminación de pregunta:', pregunta.id);
-        
-        // Primero verificar si se puede eliminar
-        const verificacionResponse = await fetch(`/api/preguntas/${pregunta.id}/verificar-eliminacion`);
-        
-        if (!verificacionResponse.ok) {
-            throw new Error('Error al verificar la pregunta');
-        }
-        
-        const verificacionData = await verificacionResponse.json();
-        
-        // Si tiene relaciones, mostrar confirmación detallada
-        if (!verificacionData.puede_eliminar) {
-            await this.mostrarConfirmacionEliminacion(pregunta, verificacionData);
-            return;
-        }
-        
-        // Si no tiene relaciones, confirmación simple
-        if (!confirm('¿Estás seguro de eliminar esta pregunta?')) {
-            return;
-        }
-        
-        await this.procesarEliminacion(pregunta.id);
-        
-    } catch (error) {
-        console.error('❌ Error verificando pregunta:', error);
-        this.mostrarMensaje('Error al verificar la pregunta: ' + error.message, 'error');
-    }
-},
-
-// ✅ NUEVO MÉTODO: Mostrar confirmación detallada
-async mostrarConfirmacionEliminacion(pregunta, datosVerificacion) {
-    const detalles = datosVerificacion.detalles || [];
-    const estadisticas = datosVerificacion.estadisticas || {};
-    
-    let mensaje = `⚠️ <strong>No se puede eliminar la pregunta directamente</strong>\n\n`;
-    mensaje += `La pregunta "<em>${pregunta.pregunta}</em>" tiene los siguientes datos relacionados:\n\n`;
-    
-    detalles.forEach(detalle => {
-        mensaje += `${detalle}\n`;
-    });
-    
-    mensaje += `\n<strong>Estadísticas:</strong>\n`;
-    mensaje += `• Respuestas registradas: ${estadisticas.total_respuestas || 0}\n`;
-    mensaje += `• Opciones con subpreguntas: ${estadisticas.total_opciones_con_subpreguntas || 0}\n`;
-    mensaje += `• Preguntas de rango: ${estadisticas.total_subpreguntas_rango || 0}\n\n`;
-    
-    mensaje += `¿Deseas <strong>eliminar todos estos datos</strong> junto con la pregunta?\n\n`;
-    mensaje += `🔴 <strong>ADVERTENCIA:</strong> Esta acción eliminará permanentemente:\n`;
-    mensaje += `• Todas las respuestas asociadas\n`;
-    mensaje += `• Todas las subpreguntas y sus respuestas\n`;
-    mensaje += `• Todas las opciones configuradas\n`;
-    mensaje += `• Esta acción NO se puede deshacer`;
-    
-    // Usar SweetAlert2 o confirm personalizado
-    if (await this.mostrarConfirmacionAvanzada(mensaje)) {
-        await this.procesarEliminacionForzada(pregunta.id);
-    }
-},
-
-// ✅ NUEVO MÉTODO: Mostrar confirmación avanzada (puedes usar SweetAlert2)
-mostrarConfirmacionAvanzada(mensaje) {
-    return new Promise((resolve) => {
-        // Opción 1: Usar SweetAlert2 (recomendado)
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: '⚠️ Confirmación de Eliminación',
-                html: mensaje,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Sí, eliminar todo',
-                cancelButtonText: 'Cancelar',
-                width: 600,
-                customClass: {
-                    popup: 'eliminacion-confirmacion'
+        async eliminarPregunta(pregunta) {
+            try {
+                console.log('🔍 Verificando eliminación de pregunta:', pregunta.id);
+                
+                // Primero verificar si se puede eliminar
+                const verificacionResponse = await fetch(`/api/preguntas/${pregunta.id}/verificar-eliminacion`);
+                
+                if (!verificacionResponse.ok) {
+                    throw new Error('Error al verificar la pregunta');
                 }
-            }).then((result) => {
-                resolve(result.isConfirmed);
+                
+                const verificacionData = await verificacionResponse.json();
+                
+                // Si tiene relaciones, mostrar confirmación detallada
+                if (!verificacionData.puede_eliminar) {
+                    await this.mostrarConfirmacionEliminacion(pregunta, verificacionData);
+                    return;
+                }
+                
+                // Si no tiene relaciones, confirmación simple
+                const result = await Swal.fire({
+                    title: '¿Estás seguro?',
+                    text: '¿Estás seguro de eliminar esta pregunta?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: 'Sí, eliminar',
+                    cancelButtonText: 'Cancelar'
+                });
+
+                if (!result.isConfirmed) return;
+                
+                await this.procesarEliminacion(pregunta.id);
+                
+            } catch (error) {
+                console.error('❌ Error verificando pregunta:', error);
+                this.mostrarMensaje('Error al verificar la pregunta: ' + error.message, 'error');
+            }
+        },
+
+        // ✅ NUEVO MÉTODO: Mostrar confirmación detallada
+        async mostrarConfirmacionEliminacion(pregunta, datosVerificacion) {
+            const detalles = datosVerificacion.detalles || [];
+            const estadisticas = datosVerificacion.estadisticas || {};
+            
+            let mensaje = `⚠️ <strong>No se puede eliminar la pregunta directamente</strong>\n\n`;
+            mensaje += `La pregunta "<em>${pregunta.pregunta}</em>" tiene los siguientes datos relacionados:\n\n`;
+            
+            detalles.forEach(detalle => {
+                mensaje += `${detalle}\n`;
             });
-        } else {
-            // Opción 2: Confirm nativo (menos elegante)
-            resolve(confirm(mensaje.replace(/<[^>]*>/g, '')));
-        }
-    });
-},
-// ✅ MÉTODO: Procesar eliminación normal
-async procesarEliminacion(preguntaId) {
-    try {
-        const response = await fetch(`/api/preguntas/${preguntaId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        });
-        
-        if (response.ok) {
-            await this.cargarPreguntas();
-            this.mostrarMensaje('Pregunta eliminada correctamente', 'success');
-        } else {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Error al eliminar');
-        }
-    } catch (error) {
-        console.error('Error eliminando pregunta:', error);
-        this.mostrarMensaje('Error al eliminar la pregunta: ' + error.message, 'error');
-    }
-},
-
-// ✅ NUEVO MÉTODO: Procesar eliminación forzada
-async procesarEliminacionForzada(preguntaId) {
-    try {
-        console.log('🗑️ Iniciando eliminación forzada de pregunta:', preguntaId);
-        
-        const response = await fetch(`/api/preguntas/${preguntaId}/eliminar-forzado`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        });
-        
-        if (response.ok) {
-            await this.cargarPreguntas();
-            this.mostrarMensaje('Pregunta y todos sus datos relacionados eliminados correctamente', 'success');
-        } else {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Error al eliminar forzadamente');
-        }
-    } catch (error) {
-        console.error('Error eliminando pregunta forzadamente:', error);
-        this.mostrarMensaje('Error al eliminar la pregunta: ' + error.message, 'error');
-    }
-},
-
-        cerrarModalPregunta() {
-            this.mostrarModalPregunta = false;
-            this.esEdicionPregunta = false;
-            this.resetearConfiguracionRangos();
             
-            // 🔥 Resetear TODOS los datos
-            this.tipoSeleccionado = null;
-            this.areasSeleccionadas = [];
-            this.sedesSeleccionadas = [];
+            mensaje += `\n<strong>Estadísticas:</strong>\n`;
+            mensaje += `• Respuestas registradas: ${estadisticas.total_respuestas || 0}\n`;
+            mensaje += `• Opciones con subpreguntas: ${estadisticas.total_opciones_con_subpreguntas || 0}\n`;
+            mensaje += `• Preguntas de rango: ${estadisticas.total_subpreguntas_rango || 0}\n\n`;
             
-            // Resetear el formulario
-            this.preguntaForm = {
-                id: null,
-                pregunta: '',
-                tipo: 'opcion_unica',
-                tipo_pregunta: null,
-                area_id: null,
-                niveles_calificacion_id: '',
-                sede_id: this.sedeActual ? this.sedeActual.id : null,
-                opciones: [{ texto: '' }, { texto: '' }],
-                is_active: true,
-                areas_participantes: [],
-                sede_participante: null
-            };
+            mensaje += `¿Deseas <strong>eliminar todos estos datos</strong> junto con la pregunta?\n\n`;
+            mensaje += `🔴 <strong>ADVERTENCIA:</strong> Esta acción eliminará permanentemente:\n`;
+            mensaje += `• Todas las respuestas asociadas\n`;
+            mensaje += `• Todas las subpreguntas y sus respuestas\n`;
+            mensaje += `• Todas las opciones configuradas\n`;
+            mensaje += `• Esta acción NO se puede deshacer`;
+            
+            // Usar SweetAlert2 o confirm personalizado
+            if (await this.mostrarConfirmacionAvanzada(mensaje)) {
+                await this.procesarEliminacionForzada(pregunta.id);
+            }
+        },
+
+        // ✅ NUEVO MÉTODO: Mostrar confirmación avanzada (puedes usar SweetAlert2)
+        mostrarConfirmacionAvanzada(mensaje) {
+            return new Promise((resolve) => {
+                // Opción 1: Usar SweetAlert2 (recomendado)
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: '⚠️ Confirmación de Eliminación',
+                        html: mensaje,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#3085d6',
+                        confirmButtonText: 'Sí, eliminar todo',
+                        cancelButtonText: 'Cancelar',
+                        width: 600,
+                        customClass: {
+                            popup: 'eliminacion-confirmacion'
+                        }
+                    }).then((result) => {
+                        resolve(result.isConfirmed);
+                    });
+                } else {
+                    // Opción 2: SweetAlert2
+                    Swal.fire({
+                        title: 'Confirmación',
+                        text: mensaje.replace(/<[^>]*>/g, ''),
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#3b82f6',
+                        cancelButtonColor: '#6b7280',
+                        confirmButtonText: 'Sí',
+                        cancelButtonText: 'No'
+                    }).then((result) => {
+                        resolve(result.isConfirmed);
+                    });
+                }
+            });
+        },
+
+        // ✅ MÉTODO: Procesar eliminación normal
+        async procesarEliminacion(preguntaId) {
+            try {
+                const response = await fetch(`/api/preguntas/${preguntaId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
+                
+                if (response.ok) {
+                    await this.cargarPreguntas();
+                    this.mostrarMensaje('Pregunta eliminada correctamente', 'success');
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Error al eliminar');
+                }
+            } catch (error) {
+                console.error('Error eliminando pregunta:', error);
+                this.mostrarMensaje('Error al eliminar la pregunta: ' + error.message, 'error');
+            }
+        },
+
+        // ✅ NUEVO MÉTODO: Procesar eliminación forzada
+        async procesarEliminacionForzada(preguntaId) {
+            try {
+                console.log('🗑️ Iniciando eliminación forzada de pregunta:', preguntaId);
+                
+                const response = await fetch(`/api/preguntas/${preguntaId}/eliminar-forzado`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
+                
+                if (response.ok) {
+                    await this.cargarPreguntas();
+                    this.mostrarMensaje('Pregunta y todos sus datos relacionados eliminados correctamente', 'success');
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Error al eliminar forzadamente');
+                }
+            } catch (error) {
+                console.error('Error eliminando pregunta forzadamente:', error);
+                this.mostrarMensaje('Error al eliminar la pregunta: ' + error.message, 'error');
+            }
         },
 
         cerrarModalSubpreguntas() {
@@ -3150,8 +3193,8 @@ async procesarEliminacionForzada(preguntaId) {
                 timerProgressBar: tipo === 'success'
             });
         }
-    }   
-}
+    }
+};
 </script>
 
 <style scoped>
@@ -3972,6 +4015,7 @@ async procesarEliminacionForzada(preguntaId) {
 
 /* CHECKBOX */
 .checkbox-container {
+    justify-content: center;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -4035,6 +4079,7 @@ async procesarEliminacionForzada(preguntaId) {
 
 /* MODAL ACTIONS */
 .modal-actions {
+    justify-self: center;
     display: flex;
     gap: 1rem;
     justify-content: flex-end;

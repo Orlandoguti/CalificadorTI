@@ -145,6 +145,8 @@
 </template>
 
 <script>
+import Swal from 'sweetalert2';
+
 export default {
     name: 'Areas',
     data() {
@@ -575,7 +577,12 @@ getColorPorDefecto(codigo) {
         
     } catch (error) {
         console.error('Error procesando área:', error);
-        alert('Error al procesar la selección: ' + error.message);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al procesar la selección: ' + error.message,
+            confirmButtonColor: '#ef4444'
+        });
     } finally {
         // Cerrar el modal después de procesar
         this.cerrarModal();

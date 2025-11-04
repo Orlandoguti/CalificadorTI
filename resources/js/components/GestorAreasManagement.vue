@@ -171,6 +171,8 @@
 </template>
 
 <script>
+import Swal from 'sweetalert2';
+
 export default {
     name: 'GestorAreasManagement',
     data() {
@@ -358,7 +360,14 @@ export default {
         },
 
         mostrarMensaje(mensaje, tipo) {
-            alert(`${tipo === 'success' ? '✅' : '❌'} ${mensaje}`);
+            Swal.fire({
+                icon: tipo === 'success' ? 'success' : 'error',
+                title: tipo === 'success' ? '¡Éxito!' : 'Error',
+                text: mensaje,
+                timer: tipo === 'success' ? 2000 : 3000,
+                showConfirmButton: tipo !== 'success',
+                confirmButtonColor: tipo === 'success' ? '#10b981' : '#ef4444'
+            });
         }
     }
 }

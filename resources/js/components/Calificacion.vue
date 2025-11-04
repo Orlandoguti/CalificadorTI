@@ -14,7 +14,7 @@
                     <h1 class="calificador-titulo">¿Cómo fue tu atención?</h1>
                     <div class="ubicacion-info">
                         <i class="fas fa-map-marker-alt"></i>
-                        <span>{{ areaSeleccionada.nombre }} - {{ sedeNombre }}</span>
+                        <span>{{ areaSeleccionada.codigo }} - {{ sedeNombre.toUpperCase() }}</span>
                     </div>
                 </div>
                 
@@ -701,9 +701,9 @@ respuestaUnica: {
     // 🔥 NUEVO: Determinar texto del botón
     textoBotonContinuar() {
         if (this.modoSubpreguntas) {
-            return this.esUltimaSubpregunta ? 'Finalizar Subpreguntas' : 'Siguiente Subpregunta';
+            return this.esUltimaSubpregunta ? 'Finalizar Calificación' : 'Continuar';
         }
-        return this.esUltimaPregunta ? 'Finalizar' : 'Siguiente';
+        return this.esUltimaPregunta ? 'Calificar' : 'Siguiente';
     },
     esUltimaSubpregunta() {
         return this.modoSubpreguntas && this.subpreguntaIndex === this.subpreguntasActuales.length - 1;
@@ -791,10 +791,79 @@ respuestaUnica: {
         },
         
         /**
+         * 🔥 NUEVO: Guardar un tipo individual de calificación
+         */
+        async guardarCalificacionTipoIndividual() {
+            try {
+                console.log('💾 Guardando calificación individual para tipo:', this.tipoCalificacionActual);
+                
+                const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(this.sedeNombre)}`);
+                let sedeId = null;
+                if (sedeResponse.ok) {
+                    const sedeData = await sedeResponse.json();
+                    sedeId = sedeData.id;
+                } else {
+                    sedeId = 1;
+                }
+
+                // Preparar respuestas del tipo actual
+                let respuestasFormato = this.respuestas;
+                if (respuestasFormato && typeof respuestasFormato === 'object' && !Array.isArray(respuestasFormato)) {
+                    if (Object.keys(respuestasFormato).length === 0) {
+                        respuestasFormato = {};
+                    }
+                } else if (!respuestasFormato || Array.isArray(respuestasFormato)) {
+                    respuestasFormato = {};
+                }
+
+                // Preparar datos para subpreguntas y rangos del tipo actual
+                const respuestasSubpreguntasActuales = this.extraerRespuestasSubpreguntas();
+                const respuestasRangosActuales = this.extraerRespuestasRangos();
+
+                const calificacionData = {
+                    area_id: this.areaSeleccionada.id,
+                    nivel_calificacion_id: this.nivelSeleccionado?.esFCR ? null : (this.nivelSeleccionado?.id || null),
+                    sede_id: sedeId,
+                    respuestas: respuestasFormato,
+                    respuestas_subpreguntas: respuestasSubpreguntasActuales,
+                    respuestas_rangos: respuestasRangosActuales
+                };
+
+                console.log('📤 Guardando calificación tipo individual:', this.tipoCalificacionActual, calificacionData);
+
+                const response = await fetch('/api/calificaciones/completa', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify(calificacionData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                console.log('✅ Calificación tipo individual guardada exitosamente:', this.tipoCalificacionActual, result);
+                return result;
+
+            } catch (error) {
+                console.error('❌ Error guardando calificación tipo individual:', error);
+                // No mostrar error al usuario, solo loguear para no interrumpir el flujo
+                return null;
+            }
+        },
+
+        /**
          * 🔥 NUEVO: Avanzar al siguiente tipo de calificación en la secuencia
          */
         async avanzarAlSiguienteTipo() {
-            // Acumular respuestas del tipo actual antes de avanzar
+            // 🔥 NUEVO: Guardar el tipo actual ANTES de avanzar
+            console.log('💾 Guardando tipo actual antes de avanzar:', this.tipoCalificacionActual);
+            await this.guardarCalificacionTipoIndividual();
+            
+            // Acumular respuestas del tipo actual antes de avanzar (para referencia, aunque ya se guardó)
             this.acumularRespuestasActuales();
             
             // Limpiar respuestas actuales para el siguiente tipo
@@ -814,9 +883,8 @@ respuestaUnica: {
             this.indiceTipoActual++;
             
             if (this.indiceTipoActual >= this.tiposCalificacionSecuencia.length) {
-                // Ya terminamos todos los tipos, guardar y mostrar agradecimiento
-                console.log('🎉 Todos los tipos completados, guardando y mostrando agradecimiento...');
-                await this.guardarCalificacionCompletaSecuencial();
+                // Ya terminamos todos los tipos, solo mostrar agradecimiento (ya se guardó cada uno)
+                console.log('🎉 Todos los tipos completados (ya guardados individualmente)');
                 this.mostrarCuestionario = false;
                 this.mostrarAgradecimiento = true;
                 this.iniciarTemporizadorCierre();
@@ -1284,24 +1352,43 @@ validarRespuestaSubpregunta(subpregunta, respuesta) {
             if (respuesta.valor !== undefined) {
                 console.log('🎯 Procesando indicador con valor:', respuesta.valor);
                 
-                // 🔥 CORRECCIÓN: Cerrar el modal ANTES de buscar la pregunta de rango para evitar mostrar "Pregunta según tu calificación"
-                const esNPS = this.tipoCalificacionActual === 'nps';
-                if (esNPS) {
-                    // Cerrar modal primero para que no se muestre el mensaje genérico
-                    this.mostrarCuestionario = false;
+                // Guardar la respuesta del indicador antes de eliminar la pregunta
+                const preguntaIndicadorId = this.preguntaActualData.id;
+                
+                // 🔥 CORRECCIÓN: Si es NPS y viene de la barra inicial, ya se eliminó la pregunta en iniciarConNPS
+                // Para otros casos (CSAT, FCR, o NPS en flujo secuencial), eliminar la pregunta del indicador
+                // antes de cargar la pregunta de rango para que no se muestre dos veces
+                const esNPSDesdeBarra = this.tipoCalificacionActual === 'nps' && 
+                                       this.respuestaIndicadorNPS !== null && 
+                                       this.respuestas[preguntaIndicadorId]?.valor === this.respuestaIndicadorNPS;
+                
+                if (!esNPSDesdeBarra) {
+                    // Eliminar la pregunta del indicador del array antes de cargar la pregunta de rango
+                    const indicadorIndex = this.preguntas.findIndex(p => p.id === preguntaIndicadorId);
+                    if (indicadorIndex !== -1) {
+                        this.preguntas.splice(indicadorIndex, 1);
+                        console.log('🗑️ Pregunta indicador eliminada del flujo antes de cargar pregunta de rango');
+                        // Ajustar el índice de pregunta actual si es necesario
+                        if (this.preguntaActual >= indicadorIndex) {
+                            this.preguntaActual = Math.max(0, this.preguntaActual - 1);
+                        }
+                    }
                 }
                 
                 const tienePreguntaRango = await this.cargarPreguntaRango(
-                    this.preguntaActualData.id, 
+                    preguntaIndicadorId, 
                     respuesta.valor
                 );
                 
                 if (tienePreguntaRango) {
-                    // Si hay pregunta de rango, abrir el modal de nuevo
+                    // Si hay pregunta de rango, la pregunta ya está en el array (insertada por cargarPreguntaRango)
+                    // Ajustar preguntaActual si fue necesario
+                    const preguntaRangoIndex = this.preguntas.findIndex(p => p.es_pregunta_rango && p.pregunta_indicador_id === preguntaIndicadorId);
+                    if (preguntaRangoIndex !== -1) {
+                        this.preguntaActual = preguntaRangoIndex;
+                    }
                     this.mostrarCuestionario = true;
-                    console.log('✅ Pregunta de rango cargada, avanzando a ella...');
-                    // Avanzar a la pregunta de rango recién agregada
-                    this.preguntaActual++;
+                    console.log('✅ Pregunta de rango cargada, mostrando directamente');
                     this.cargando = false;
                     return;
                 } else {
@@ -1320,12 +1407,16 @@ validarRespuestaSubpregunta(subpregunta, respuesta) {
                         if (!hayMasTipos) {
                             // No hay más tipos, finalizar directamente
                             console.log('🎉 NPS sin pregunta de rango: Finalizando calificación...');
-                            await this.guardarCalificacionCompleta();
+                            if (this.tiposCalificacionSecuencia.length > 1) {
+                                await this.guardarCalificacionTipoIndividual();
+                            } else {
+                                await this.guardarCalificacionCompleta();
+                            }
                             this.mostrarAgradecimiento = true;
                             this.iniciarTemporizadorCierre();
                             return;
                         } else {
-                            // Hay más tipos, avanzar al siguiente
+                            // Hay más tipos, avanzar al siguiente (avanzarAlSiguienteTipo ya guarda)
                             console.log('➡️ NPS sin pregunta de rango: Avanzando al siguiente tipo...');
                             await this.avanzarAlSiguienteTipo();
                             return;
@@ -1383,7 +1474,12 @@ async procesarPreguntaNormal() {
         
         if (!hayMasTipos && this.tipoCalificacionActual === 'nps') {
             console.log('🎉 NPS final (último tipo): Finalizando calificación completa...');
-            await this.guardarCalificacionCompleta();
+            // Guardar individualmente si es flujo secuencial, sino usar método normal
+            if (this.tiposCalificacionSecuencia.length > 1) {
+                await this.guardarCalificacionTipoIndividual();
+            } else {
+                await this.guardarCalificacionCompleta();
+            }
             this.mostrarCuestionario = false;
             this.mostrarAgradecimiento = true;
             this.iniciarTemporizadorCierre();
@@ -1428,10 +1524,23 @@ async procesarPreguntaNormal() {
                 console.log('⚠️ FCR: Se resolvió (Sí) pero NO tiene subpreguntas, finalizando...');
                 // Si selecciona "Sí" sin subpreguntas, finalizar directamente
                 console.log('✅ FCR: Se resolvió (Sí), finalizando...');
-                await this.guardarCalificacionCompleta();
-                this.mostrarCuestionario = false;
-                this.mostrarAgradecimiento = true;
-                this.iniciarTemporizadorCierre();
+                // Verificar si hay más tipos
+                const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                                    this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+                if (hayMasTipos) {
+                    // avanzarAlSiguienteTipo() ya guarda el tipo actual antes de avanzar
+                    await this.avanzarAlSiguienteTipo();
+                } else {
+                    // Último tipo, guardar y finalizar
+                    if (this.tiposCalificacionSecuencia.length > 1) {
+                        await this.guardarCalificacionTipoIndividual();
+                    } else {
+                        await this.guardarCalificacionCompleta();
+                    }
+                    this.mostrarCuestionario = false;
+                    this.mostrarAgradecimiento = true;
+                    this.iniciarTemporizadorCierre();
+                }
                 return;
             } else if (esNo && opcionSeleccionada.tiene_subpreguntas) {
                 // Si selecciona "No" y tiene subpreguntas, cargarlas
@@ -1445,10 +1554,23 @@ async procesarPreguntaNormal() {
             } else if (esNo) {
                 // 🔥 CORRECCIÓN: Si selecciona "No" pero NO tiene subpreguntas, finalizar DIRECTAMENTE sin mensaje
                 console.log('❌ FCR: NO se resolvió, pero no hay subpreguntas. Finalizando directamente sin mensaje...');
-                await this.guardarCalificacionCompleta();
-                this.mostrarCuestionario = false;
-                this.mostrarAgradecimiento = true;
-                this.iniciarTemporizadorCierre();
+                // Verificar si hay más tipos
+                const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                                    this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+                if (hayMasTipos) {
+                    // avanzarAlSiguienteTipo() ya guarda el tipo actual antes de avanzar
+                    await this.avanzarAlSiguienteTipo();
+                } else {
+                    // Último tipo, guardar y finalizar
+                    if (this.tiposCalificacionSecuencia.length > 1) {
+                        await this.guardarCalificacionTipoIndividual();
+                    } else {
+                        await this.guardarCalificacionCompleta();
+                    }
+                    this.mostrarCuestionario = false;
+                    this.mostrarAgradecimiento = true;
+                    this.iniciarTemporizadorCierre();
+                }
                 return;
             }
         }
@@ -1477,7 +1599,11 @@ async procesarPreguntaNormal() {
     // Si no hay más tipos y es CSAT, finalizar
     if (!hayMasTipos && this.tipoCalificacionActual === 'csat') {
         console.log('🎉 CSAT final (último tipo): Finalizando calificación completa...');
-        await this.guardarCalificacionCompleta();
+        if (this.tiposCalificacionSecuencia.length > 1) {
+            await this.guardarCalificacionTipoIndividual();
+        } else {
+            await this.guardarCalificacionCompleta();
+        }
         this.mostrarCuestionario = false;
         this.mostrarAgradecimiento = true;
         this.iniciarTemporizadorCierre();
@@ -1560,19 +1686,23 @@ async finalizarSubpreguntas() {
     // Si es FCR y no hay más tipos, finalizar
     if ((this.nivelSeleccionado?.esFCR || this.tipoCalificacionActual === 'fcr') && !hayMasTipos) {
         console.log('🎉 FCR final (último tipo): Guardando calificación completa...');
-        await this.guardarCalificacionCompleta();
+        if (this.tiposCalificacionSecuencia.length > 1) {
+            await this.guardarCalificacionTipoIndividual();
+        } else {
+            await this.guardarCalificacionCompleta();
+        }
         this.mostrarCuestionario = false;
         this.mostrarAgradecimiento = true;
         this.iniciarTemporizadorCierre();
         return;
     }
     
-    // Si hay más tipos, avanzar al siguiente
-    if (hayMasTipos) {
-        console.log('➡️ Tipo actual completado, avanzando al siguiente tipo...');
-        await this.avanzarAlSiguienteTipo();
-        return;
-    }
+        // Si hay más tipos, avanzar al siguiente (avanzarAlSiguienteTipo ya guarda)
+        if (hayMasTipos) {
+            console.log('➡️ Tipo actual completado, avanzando al siguiente tipo...');
+            await this.avanzarAlSiguienteTipo();
+            return;
+        }
     
     // Limpiar estados y continuar con siguiente pregunta normal
     this.modoSubpreguntas = false;
@@ -1595,13 +1725,20 @@ async verificarFinalizacion() {
         
         if (hayMasTipos) {
             console.log('➡️ Tipo actual completado, avanzando al siguiente tipo...');
+            // avanzarAlSiguienteTipo() ya guarda el tipo actual antes de avanzar
             await this.avanzarAlSiguienteTipo();
             return;
         }
         
-        // Es el último tipo, finalizar
+        // Es el último tipo, guardar y finalizar
         console.log('🎉 Finalizando último tipo de calificación');
-        await this.guardarCalificacionCompleta();
+        if (this.tiposCalificacionSecuencia.length > 1) {
+            // Si es flujo secuencial, guardar el último tipo individualmente
+            await this.guardarCalificacionTipoIndividual();
+        } else {
+            // Si no es flujo secuencial, usar el método normal
+            await this.guardarCalificacionCompleta();
+        }
         this.mostrarCuestionario = false;
         this.mostrarAgradecimiento = true;
         this.iniciarTemporizadorCierre();
@@ -1645,10 +1782,13 @@ async guardarCalificacionCompleta() {
         }
         
         // Si es el último tipo o flujo no secuencial, guardar
-        // 🔥 CORRECCIÓN: Combinar respuestas acumuladas con las actuales si estamos en flujo secuencial
+        // 🔥 CORRECCIÓN: En flujo secuencial, cada tipo ya se guardó individualmente
+        // Solo necesitamos guardar si NO es flujo secuencial
         let respuestasFinales = { ...this.respuestas };
         if (this.tiposCalificacionSecuencia.length > 1) {
-            // Combinar con respuestas acumuladas
+            // En flujo secuencial, este método solo se llama para el último tipo
+            // pero ya debería haberse guardado en avanzarAlSiguienteTipo
+            // Por seguridad, combinamos con respuestas acumuladas
             respuestasFinales = { ...this.respuestasAcumuladas, ...this.respuestas };
         }
         
@@ -1723,7 +1863,12 @@ async guardarCalificacionCompleta() {
         
     } catch (error) {
         console.error('❌ Error guardando calificación:', error);
-        alert('Error al guardar la calificación: ' + error.message);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al guardar la calificación: ' + error.message,
+            confirmButtonColor: '#ef4444'
+        });
     }
 },
 
@@ -1887,13 +2032,15 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
                 console.log('📥 Pregunta de rango procesada:', preguntaRangoObj);
                 
                 // 🔥 CORRECCIÓN: Insertar la pregunta de rango DESPUÉS del indicador actual
+                // Si el indicador ya fue eliminado, insertar al inicio
                 const indicadorIndex = this.preguntas.findIndex(p => p.id === preguntaId);
                 if (indicadorIndex !== -1) {
                     this.preguntas.splice(indicadorIndex + 1, 0, preguntaRangoObj);
                     console.log('✅ Pregunta de rango insertada en posición:', indicadorIndex + 1);
                 } else {
-                    this.preguntas.push(preguntaRangoObj);
-                    console.log('✅ Pregunta de rango agregada al final');
+                    // Si no se encuentra el indicador (fue eliminado antes), insertar al inicio
+                    this.preguntas.unshift(preguntaRangoObj);
+                    console.log('✅ Pregunta de rango agregada al inicio (indicador ya fue eliminado)');
                 }
                 
                 return true;
@@ -3022,12 +3169,17 @@ async iniciarConNPS() {
         return;
     }
     
-    // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Si viene del flujo secuencial, NO eliminar la pregunta NPS,
-    // déjala visible para que el usuario pueda verla y usar el slider en el modal
+    // 🔥 CORRECCIÓN: Determinar si debemos eliminar la pregunta NPS del modal
+    // Si NO viene del flujo secuencial (solo NPS) O si viene del flujo secuencial PERO NPS es el primer tipo
+    // entonces debemos eliminar la pregunta NPS porque ya se seleccionó en la barra inicial
     const vieneDelFlujoSecuencial = this.tiposCalificacionSecuencia.length > 1;
+    const esNPSPrimerTipo = vieneDelFlujoSecuencial && 
+                           this.indiceTipoActual === 0 && 
+                           this.tipoCalificacionActual === 'nps';
+    const debeEliminarNPSDelModal = !vieneDelFlujoSecuencial || esNPSPrimerTipo;
     
-    if (this.preguntas.length > 0 && !vieneDelFlujoSecuencial) {
-        // Solo aplicar la lógica antigua si NO viene del flujo secuencial
+    if (this.preguntas.length > 0 && debeEliminarNPSDelModal) {
+        // Aplicar la lógica si NO viene del flujo secuencial O si NPS es el primer tipo del flujo
         const preguntaNPS = this.preguntas[0]; // La primera pregunta es NPS
         
         // Guardar la respuesta del indicador NPS
@@ -3035,18 +3187,56 @@ async iniciarConNPS() {
             this.respuestas[preguntaNPS.id] = { valor: valorGuardado };
             console.log('✅ Respuesta NPS guardada:', valorGuardado);
             
+            // Guardar el ID de la pregunta NPS antes de eliminarla
+            const preguntaNPSId = preguntaNPS.id;
+            
+            // 🔥 CORRECCIÓN: Eliminar la pregunta NPS PRIMERO, antes de cargar la pregunta de rango
+            // porque ya se seleccionó el valor en la barra inicial y no debe aparecer en el modal
+            this.preguntas.splice(0, 1);
+            console.log('🗑️ Pregunta NPS principal eliminada del flujo antes de cargar pregunta de rango');
+            console.log('📋 Preguntas después de eliminar NPS:', this.preguntas.length);
+            
             // Cargar directamente las subpreguntas de rango (mostrar alerta si no hay)
-            const tienePreguntaRango = await this.cargarPreguntaRango(preguntaNPS.id, valorGuardado, true);
+            const tienePreguntaRango = await this.cargarPreguntaRango(preguntaNPSId, valorGuardado, true);
+            
+            console.log('📋 Preguntas después de cargar pregunta de rango:', this.preguntas.length, this.preguntas.map(p => ({ id: p.id, tipo: p.tipo, es_rango: p.es_pregunta_rango })));
             
             if (tienePreguntaRango) {
                 console.log('✅ Subpreguntas de rango cargadas, abriendo modal con pregunta de rango');
-                // Eliminar la pregunta principal NPS del array - ya no se mostrará
-                this.preguntas.splice(0, 1);
-                // Ahora sí abrir el modal para mostrar la pregunta de rango
+                
+                // 🔥 VERIFICACIÓN CRÍTICA: Asegurar que no haya preguntas NPS (indicador_0_10) en el array
+                this.preguntas = this.preguntas.filter(p => !(p.tipo === 'indicador_0_10' && p.tipo_pregunta === 'nps'));
+                console.log('🔍 Preguntas después de filtrar NPS:', this.preguntas.length);
+                
+                // Verificar que la pregunta de rango esté en el array
+                const preguntaRangoIndex = this.preguntas.findIndex(p => p.es_pregunta_rango && p.pregunta_indicador_id === preguntaNPSId);
+                if (preguntaRangoIndex !== -1) {
+                    this.preguntaActual = preguntaRangoIndex;
+                } else {
+                    // Si no se encuentra por ID, buscar la primera pregunta de rango
+                    const primeraRangoIndex = this.preguntas.findIndex(p => p.es_pregunta_rango);
+                    this.preguntaActual = primeraRangoIndex !== -1 ? primeraRangoIndex : 0;
+                }
+                
+                // Verificar que la pregunta en preguntaActual no sea NPS
+                if (this.preguntas[this.preguntaActual] && this.preguntas[this.preguntaActual].tipo === 'indicador_0_10') {
+                    console.error('❌ ERROR: La pregunta actual es NPS, debería ser pregunta de rango');
+                    // Buscar la siguiente pregunta que no sea NPS
+                    const siguienteNoNPS = this.preguntas.findIndex((p, idx) => idx >= this.preguntaActual && p.tipo !== 'indicador_0_10');
+                    if (siguienteNoNPS !== -1) {
+                        this.preguntaActual = siguienteNoNPS;
+                    }
+                }
+                
+                // La pregunta de rango ya está en el array (se insertó por cargarPreguntaRango)
+                // Ahora sí abrir el modal para mostrar directamente la pregunta de rango
                 this.mostrarCuestionario = true;
-                this.preguntaActual = 0;
                 this.cargando = false;
-                console.log('🗑️ Pregunta NPS principal eliminada del flujo');
+                console.log('✅ Abriendo modal directamente con pregunta de rango (sin pregunta NPS)');
+                console.log('📍 Índice de pregunta actual:', this.preguntaActual);
+                console.log('📝 Pregunta que se mostrará:', this.preguntas[this.preguntaActual]);
+                console.log('🔍 Verificación final - Tipo de pregunta:', this.preguntas[this.preguntaActual]?.tipo, 'Es rango:', this.preguntas[this.preguntaActual]?.es_pregunta_rango);
+                return; // 🔥 IMPORTANTE: Salir aquí para no continuar con el código siguiente
             } else {
                 // 🔥 CORRECCIÓN: Cuando no hay pregunta de rango, la alerta ya se mostró en cargarPreguntaRango
                 // NO abrir el modal, solo finalizar o avanzar
@@ -3056,7 +3246,11 @@ async iniciarConNPS() {
                 
                 if (!hayMasTiposNPS) {
                     console.log('🎉 NPS final sin preguntas de rango: Finalizando directamente...');
-                    await this.guardarCalificacionCompleta();
+                    if (this.tiposCalificacionSecuencia.length > 1) {
+                        await this.guardarCalificacionTipoIndividual();
+                    } else {
+                        await this.guardarCalificacionCompleta();
+                    }
                     this.mostrarAgradecimiento = true;
                     this.iniciarTemporizadorCierre();
                     return;
@@ -3066,9 +3260,17 @@ async iniciarConNPS() {
                     return;
                 }
             }
+        } else {
+            // Si la pregunta NPS no es de tipo indicador_0_10, abrir el modal normalmente
+            this.mostrarCuestionario = true;
+            this.preguntaActual = 0;
+            this.cargando = false;
+            console.log('✅ Pregunta NPS no es indicador_0_10, abriendo modal normalmente');
+            return;
         }
-    } else if (vieneDelFlujoSecuencial && this.preguntas.length > 0) {
-        // 🔥 CORRECCIÓN: Si viene del flujo secuencial, inicializar el valor y abrir el modal
+    } else if (vieneDelFlujoSecuencial && this.preguntas.length > 0 && !esNPSPrimerTipo) {
+        // 🔥 CORRECCIÓN: Si viene del flujo secuencial pero NPS NO es el primer tipo,
+        // inicializar el valor y abrir el modal (el usuario aún no ha seleccionado en la barra inicial)
         const preguntaNPS = this.preguntas[0];
         if (preguntaNPS.tipo === 'indicador_0_10') {
             // Inicializar el valor del indicador con el valor guardado
@@ -3078,7 +3280,7 @@ async iniciarConNPS() {
             this.mostrarCuestionario = true;
             this.preguntaActual = 0;
             this.cargando = false;
-            console.log('✅ NPS en flujo secuencial: Pregunta preparada con valor inicial:', valorGuardado);
+            console.log('✅ NPS en flujo secuencial (no es primer tipo): Pregunta preparada con valor inicial:', valorGuardado);
         }
     } else {
         this.cargando = false;
@@ -3146,7 +3348,11 @@ async iniciarConFCR(resuelto, opcion) {
         if (!hayMasTipos) {
             // Es el último tipo, finalizar
             console.log('🎉 FCR final (último tipo con Sí): Finalizando calificación completa...');
-            await this.guardarCalificacionCompleta();
+            if (this.tiposCalificacionSecuencia.length > 1) {
+                await this.guardarCalificacionTipoIndividual();
+            } else {
+                await this.guardarCalificacionCompleta();
+            }
             this.mostrarCuestionario = false;
             this.mostrarAgradecimiento = true;
             this.iniciarTemporizadorCierre();
@@ -3252,7 +3458,11 @@ async cargarSubpreguntasFCRParaOpcion(opcionId, esSi = false) {
                                     this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
                 
                 if (!hayMasTipos) {
-                    await this.guardarCalificacionCompleta();
+                    if (this.tiposCalificacionSecuencia.length > 1) {
+                        await this.guardarCalificacionTipoIndividual();
+                    } else {
+                        await this.guardarCalificacionCompleta();
+                    }
                     this.mostrarCuestionario = false;
                     this.mostrarAgradecimiento = true;
                     this.iniciarTemporizadorCierre();
@@ -3279,7 +3489,11 @@ async cargarSubpreguntasFCRParaOpcion(opcionId, esSi = false) {
                             this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
         
         if (!hayMasTipos) {
-            await this.guardarCalificacionCompleta();
+            if (this.tiposCalificacionSecuencia.length > 1) {
+                await this.guardarCalificacionTipoIndividual();
+            } else {
+                await this.guardarCalificacionCompleta();
+            }
             this.mostrarCuestionario = false;
             this.mostrarAgradecimiento = true;
             this.iniciarTemporizadorCierre();
@@ -3358,7 +3572,11 @@ async cargarSubpreguntasFCR() {
                         // 🔥 CORRECCIÓN: Si hay error cargando subpreguntas, finalizar DIRECTAMENTE sin mensaje
                         console.error('❌ No se pudieron cargar las subpreguntas, finalizando directamente');
                         this.cargando = false;
-                        await this.guardarCalificacionCompleta();
+                        if (this.tiposCalificacionSecuencia.length > 1) {
+                            await this.guardarCalificacionTipoIndividual();
+                        } else {
+                            await this.guardarCalificacionCompleta();
+                        }
                         this.mostrarCuestionario = false;
                         this.mostrarAgradecimiento = true;
                         this.iniciarTemporizadorCierre();
@@ -3367,7 +3585,11 @@ async cargarSubpreguntasFCR() {
                     // 🔥 CORRECCIÓN: Si no hay subpreguntas para "No", finalizar DIRECTAMENTE sin mensaje
                     console.log('⚠️ FCR "No": No tiene subpreguntas configuradas, finalizando directamente sin mensaje');
                     this.cargando = false;
-                    await this.guardarCalificacionCompleta();
+                    if (this.tiposCalificacionSecuencia.length > 1) {
+                        await this.guardarCalificacionTipoIndividual();
+                    } else {
+                        await this.guardarCalificacionCompleta();
+                    }
                     this.mostrarCuestionario = false;
                     this.mostrarAgradecimiento = true;
                     this.iniciarTemporizadorCierre();
@@ -3377,7 +3599,12 @@ async cargarSubpreguntasFCR() {
         
     } catch (error) {
         console.error('Error cargando subpreguntas FCR:', error);
-        alert('Error al cargar las preguntas del motivo');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al cargar las preguntas del motivo',
+            confirmButtonColor: '#ef4444'
+        });
     } finally {
         this.cargando = false;
     }

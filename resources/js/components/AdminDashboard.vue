@@ -91,6 +91,15 @@
                                     </option>
                                 </select>
                             </div>
+                            <div class="filter-group">
+                                <label><i class="fas fa-chart-line"></i> Indicador</label>
+                                <select v-model="filters.tipoCalificacion" class="form-select">
+                                    <option value="">Todos los indicadores</option>
+                                    <option value="fcr">FCR</option>
+                                    <option value="csat">CSAT</option>
+                                    <option value="nps">NPS</option>
+                                </select>
+                            </div>
                             <div class="filter-actions">
                                 <button @click="cargarEstadisticas" class="btn-primary">
                                     <i class="fas fa-sync-alt"></i> Actualizar
@@ -106,11 +115,11 @@
                     <div class="stats-grid">
                         <div class="stat-card">
                             <div class="stat-icon total-calificaciones">
-                                <i class="fas fa-chart-bar"></i>
+                                <i class="fas fa-clipboard-list"></i>
                             </div>
                             <div class="stat-info">
-                                <h3>{{ estadisticas.totales.calificaciones || 0 }}</h3>
-                                <p>Total Calificaciones</p>
+                                <h3>{{ estadisticas.totales.encuestasRespondidas || 0 }}</h3>
+                                <p>Encuestas Respondidas{{ filters.tipoCalificacion ? ` (${filters.tipoCalificacion.toUpperCase()})` : '' }}</p>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -122,16 +131,16 @@
                                 <p>Áreas Evaluadas</p>
                             </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-icon total-preguntas">
-                                <i class="fas fa-question-circle"></i>
+                        <div class="stat-card" v-if="filters.tipoCalificacion && estadisticas.totales.valorIndicador !== null">
+                            <div class="stat-icon avg-rating">
+                                <i class="fas fa-chart-line"></i>
                             </div>
                             <div class="stat-info">
-                                <h3>{{ estadisticas.totales.preguntas || 0 }}</h3>
-                                <p>Preguntas Respondidas</p>
+                                <h3>{{ estadisticas.totales.valorIndicador || '0.0' }}%</h3>
+                                <p>{{ obtenerNombreIndicador(filters.tipoCalificacion) }}</p>
                             </div>
                         </div>
-                        <div class="stat-card">
+                        <div class="stat-card" v-else>
                             <div class="stat-icon avg-rating">
                                 <i class="fas fa-star"></i>
                             </div>
@@ -306,6 +315,7 @@
 </template>
 
 <script>
+import Swal from 'sweetalert2';
 import PreguntasManagement from './PreguntasManagement.vue';
 import AreasManagement from './AreasManagement.vue';
 import SedeSelector from './SedeSelector.vue';
@@ -333,7 +343,6 @@ export default {
                 { id: 'usuarios', name: 'Usuarios', icon: 'fas fa-users' },
                 { id: 'preguntas', name: 'Preguntas', icon: 'fas fa-question-circle' },
                 { id: 'areas', name: 'Áreas', icon: 'fas fa-th-large' },
-                { id: 'reportes', name: 'Reportes', icon: 'fas fa-chart-bar' }
             ],
             showUserMenu: false,
             cargando: false,
@@ -343,7 +352,8 @@ export default {
                 fechaInicio: this.getFechaInicioMes(),
                 fechaFin: this.getFechaHoy(),
                 areaId: '',
-                nivelId: ''
+                nivelId: '',
+                tipoCalificacion: '' // FCR, CSAT, NPS
             },
             
             // Datos
@@ -452,6 +462,7 @@ export default {
                 if (this.filters.fechaFin) params.append('fecha_fin', this.filters.fechaFin);
                 if (this.filters.areaId) params.append('area_id', this.filters.areaId);
                 if (this.filters.nivelId) params.append('nivel_id', this.filters.nivelId);
+                if (this.filters.tipoCalificacion) params.append('tipo_calificacion', this.filters.tipoCalificacion);
                 
                 // Filtrar por sede si está seleccionada
                 const sedeId = this.sedeSeleccionada ? this.sedeSeleccionada.id : null;
@@ -474,6 +485,15 @@ export default {
             } finally {
                 this.cargando = false;
             }
+        },
+
+        obtenerNombreIndicador(tipo) {
+            const nombres = {
+                'fcr': 'FCR',
+                'csat': 'CSAT',
+                'nps': 'NPS'
+            };
+            return nombres[tipo] || tipo.toUpperCase();
         },
 
         renderizarGraficos() {
@@ -806,7 +826,14 @@ export default {
         },
 
         mostrarMensaje(mensaje, tipo) {
-            alert(`${tipo === 'success' ? '✅' : '❌'} ${mensaje}`);
+            Swal.fire({
+                icon: tipo === 'success' ? 'success' : 'error',
+                title: tipo === 'success' ? '¡Éxito!' : 'Error',
+                text: mensaje,
+                timer: tipo === 'success' ? 2000 : 3000,
+                showConfirmButton: tipo !== 'success',
+                confirmButtonColor: tipo === 'success' ? '#10b981' : '#ef4444'
+            });
         }
     },
 

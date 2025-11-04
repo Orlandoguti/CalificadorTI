@@ -22,7 +22,7 @@
         <!-- Filters Section -->
         <div class="filters-section">
             <div class="filters-container">
-                <div class="filter-group">
+                <div class="filter-group" style="flex-direction: row;">
                     <label class="filter-label">
                         <i class="fas fa-user-tag"></i>
                         Rol
@@ -34,7 +34,7 @@
                         <option value="user">Usuarios</option>
                     </select>
                 </div>
-                <div class="filter-group">
+                <div class="filter-group" style="flex-direction: row;">
                     <label class="filter-label">
                         <i class="fas fa-map-marker-alt"></i>
                         Sede
@@ -280,6 +280,8 @@
     </div>
 </template>
 <script>
+import Swal from 'sweetalert2';
+
 export default {
     name: 'UsersManagement',
     data() {
@@ -462,19 +464,39 @@ export default {
 
         validarFormulario() {
             if (!this.usuarioForm.name.trim()) {
-                alert('Por favor ingresa el nombre del usuario');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor ingresa el nombre del usuario',
+                    confirmButtonColor: '#3b82f6'
+                });
                 return false;
             }
             if (!this.usuarioForm.email.trim()) {
-                alert('Por favor ingresa el email del usuario');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor ingresa el email del usuario',
+                    confirmButtonColor: '#3b82f6'
+                });
                 return false;
             }
             if (!this.esEdicionUsuario && !this.usuarioForm.password) {
-                alert('Por favor ingresa una contraseña');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Campo requerido',
+                    text: 'Por favor ingresa una contraseña',
+                    confirmButtonColor: '#3b82f6'
+                });
                 return false;
             }
             if (this.usuarioForm.role === 'gestor' && !this.usuarioForm.sede_id) {
-                alert('Los gestores deben tener una sede asignada');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Sede requerida',
+                    text: 'Los gestores deben tener una sede asignada',
+                    confirmButtonColor: '#3b82f6'
+                });
                 return false;
             }
             return true;
@@ -482,11 +504,18 @@ export default {
 
         async cambiarRol(usuario) {
             const nuevoRol = usuario.role === 'gestor' ? 'user' : 'gestor';
-            const confirmacion = confirm(
-                `¿Estás seguro de cambiar el rol de ${usuario.name} a ${this.getRolTexto(nuevoRol)}?`
-            );
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: `¿Estás seguro de cambiar el rol de ${usuario.name} a ${this.getRolTexto(nuevoRol)}?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí',
+                cancelButtonText: 'Cancelar'
+            });
 
-            if (!confirmacion) return;
+            if (!result.isConfirmed) return;
 
             try {
                 const response = await fetch(`/api/usuarios/${usuario.id}/rol`, {
@@ -515,11 +544,18 @@ export default {
         },
 
         async eliminarUsuario(usuario) {
-            const confirmacion = confirm(
-                `¿Estás seguro de eliminar al usuario ${usuario.name}? Esta acción no se puede deshacer.`
-            );
+            const result = await Swal.fire({
+                title: '¿Estás seguro?',
+                text: `¿Estás seguro de eliminar al usuario ${usuario.name}? Esta acción no se puede deshacer.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            });
 
-            if (!confirmacion) return;
+            if (!result.isConfirmed) return;
 
             try {
                 const response = await fetch(`/api/usuarios/${usuario.id}`, {
@@ -556,7 +592,14 @@ export default {
         },
 
         mostrarMensaje(mensaje, tipo) {
-            alert(`${tipo === 'success' ? '✅' : '❌'} ${mensaje}`);
+            Swal.fire({
+                icon: tipo === 'success' ? 'success' : 'error',
+                title: tipo === 'success' ? '¡Éxito!' : 'Error',
+                text: mensaje,
+                timer: tipo === 'success' ? 2000 : 3000,
+                showConfirmButton: tipo !== 'success',
+                confirmButtonColor: tipo === 'success' ? '#10b981' : '#ef4444'
+            });
         }
     }
 }
@@ -1112,6 +1155,7 @@ export default {
 
 /* CHECKBOX */
 .checkbox-container {
+    justify-content: center;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -1153,6 +1197,7 @@ export default {
 }
 
 .modal-actions {
+    justify-self: center;
     display: flex;
     gap: 1rem;
     justify-content: flex-end;

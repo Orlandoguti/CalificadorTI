@@ -407,6 +407,8 @@
 </template>
 
 <script>
+import Swal from 'sweetalert2';
+
 export default {
     name: 'GestorPreguntasManagement',
     data() {
@@ -1005,7 +1007,19 @@ async actualizarOpcionTieneSubpreguntas(opcionId, tieneSubpreguntas) {
 
 
     async eliminarSubpregunta(subpregunta) {
-    if (confirm('¿Estás seguro de eliminar esta subpregunta?')) {
+        const result = await Swal.fire({
+            title: '¿Estás seguro?',
+            text: '¿Estás seguro de eliminar esta subpregunta?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (!result.isConfirmed) return;
+
         try {
             console.log('🗑️ Eliminando subpregunta:', subpregunta.id);
 
@@ -1057,7 +1071,14 @@ async actualizarOpcionTieneSubpreguntas(opcionId, tieneSubpreguntas) {
         },
 
         mostrarMensaje(mensaje, tipo) {
-            alert(`${tipo === 'success' ? '✅' : '❌'} ${mensaje}`);
+            Swal.fire({
+                icon: tipo === 'success' ? 'success' : 'error',
+                title: tipo === 'success' ? '¡Éxito!' : 'Error',
+                text: mensaje,
+                timer: tipo === 'success' ? 2000 : 3000,
+                showConfirmButton: tipo !== 'success',
+                confirmButtonColor: tipo === 'success' ? '#10b981' : '#ef4444'
+            });
         },
         /**
  * 🔥 NUEVO: Resetear configuración de rangos
@@ -1138,7 +1159,7 @@ getTextoEjemploRango(rangoKey) {
     return ejemplos[rangoKey] || 'Escribe la pregunta para este rango...';
 },
     }
-}
+
 </script>
 
 <style scoped>
