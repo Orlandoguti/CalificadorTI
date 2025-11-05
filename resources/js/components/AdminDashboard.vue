@@ -160,136 +160,112 @@
                     </div>
 
                     <!-- Gráficos Principales -->
-                    <!-- Nivel de Indicadores (Semáforo) -->
-                    <div class="charts-grid">
-                        <div class="chart-card" v-if="mostrarIndicador('csat')">
-                            <div class="chart-header">
-                                <h3>CSAT</h3>
+                    <!-- Nivel de Indicadores (Polar Area Charts) -->
+                    <div class="polar-charts-section">
+                        <div class="polar-chart-item" v-if="mostrarIndicador('csat')">
+                            <div class="polar-chart-title">CSAT</div>
+                            <div class="polar-chart-canvas-wrapper">
+                                <canvas ref="polarChartCSAT"></canvas>
                             </div>
-                            <div class="chart-container semaforo-container">
-                                <div class="semaforo-semicircular-wrapper">
-                                    <div class="semaforo-semicircular">
-                                        <svg class="semaforo-svg" viewBox="0 0 200 100">
-                                            <!-- Fondo del semáforo completo -->
-                                            <path d="M 15 100 A 85 85 0 0 1 185 100 L 100 100 Z" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2"/>
-                                            <!-- Zona roja (0-50%) -->
-                                            <path d="M 15 100 A 85 85 0 0 1 100 100 L 100 100 Z" fill="#ef4444" opacity="0.3"/>
-                                            <!-- Zona amarilla (50-70%) -->
-                                            <path d="M 100 100 A 85 85 0 0 0 140 100 L 100 100 Z" fill="#f59e0b" opacity="0.3"/>
-                                            <!-- Zona verde (70-100%) -->
-                                            <path d="M 140 100 A 85 85 0 0 0 185 100 L 100 100 Z" fill="#10b981" opacity="0.3"/>
-                                            <!-- Indicador actual -->
-                                            <path :d="getSemaforoPath(getValorIndicador('csat'))" 
-                                                  :fill="getSemaforoColor(getValorIndicador('csat'))"
-                                                  opacity="0.8"
-                                                  stroke="#fff" stroke-width="2"/>
-                                        </svg>
-                                        <div class="semaforo-valor">{{ getValorIndicador('csat') }}%</div>
-                                    </div>
-                                    <div class="semaforo-respuestas">
-                                        Nº de Respuestas: {{ getTotalRespuestas('csat') }}
-                                    </div>
-                                </div>
-                            </div>
+                            <div class="polar-chart-value">{{ getValorIndicador('csat') }}%</div>
+                            <div class="polar-chart-responses">Nº de Respuestas: {{ getTotalRespuestas('csat') }}</div>
                         </div>
 
-                        <div class="chart-card" v-if="mostrarIndicador('fcr')">
-                            <div class="chart-header">
-                                <h3>FCR</h3>
+                        <div class="polar-chart-item" v-if="mostrarIndicador('fcr')">
+                            <div class="polar-chart-title">FCR</div>
+                            <div class="polar-chart-canvas-wrapper">
+                                <canvas ref="polarChartFCR"></canvas>
                             </div>
-                            <div class="chart-container semaforo-container">
-                                <div class="semaforo-semicircular-wrapper">
-                                    <div class="semaforo-semicircular">
-                                        <svg class="semaforo-svg" viewBox="0 0 200 100">
-                                            <!-- Fondo del semáforo completo -->
-                                            <path d="M 15 100 A 85 85 0 0 1 185 100 L 100 100 Z" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2"/>
-                                            <!-- Zona roja (0-50%) -->
-                                            <path d="M 15 100 A 85 85 0 0 1 100 100 L 100 100 Z" fill="#ef4444" opacity="0.3"/>
-                                            <!-- Zona amarilla (50-70%) -->
-                                            <path d="M 100 100 A 85 85 0 0 0 140 100 L 100 100 Z" fill="#f59e0b" opacity="0.3"/>
-                                            <!-- Zona verde (70-100%) -->
-                                            <path d="M 140 100 A 85 85 0 0 0 185 100 L 100 100 Z" fill="#10b981" opacity="0.3"/>
-                                            <!-- Indicador actual -->
-                                            <path :d="getSemaforoPath(getValorIndicador('fcr'))" 
-                                                  :fill="getSemaforoColor(getValorIndicador('fcr'))"
-                                                  opacity="0.8"
-                                                  stroke="#fff" stroke-width="2"/>
-                                        </svg>
-                                        <div class="semaforo-valor">{{ getValorIndicador('fcr') }}%</div>
-                                    </div>
-                                    <div class="semaforo-respuestas">
-                                        Nº de Respuestas: {{ getTotalRespuestas('fcr') }}
-                                    </div>
-                                </div>
-                            </div>
+                            <div class="polar-chart-value">{{ getValorIndicador('fcr') }}%</div>
+                            <div class="polar-chart-responses">Nº de Respuestas: {{ getTotalRespuestas('fcr') }}</div>
                         </div>
 
-                        <div class="chart-card" v-if="mostrarIndicador('nps')">
-                            <div class="chart-header">
-                                <h3>NPS</h3>
-                                <p>Net Promoter Score</p>
+                        <div class="polar-chart-item" v-if="mostrarIndicador('nps')">
+                            <div class="polar-chart-title">NPS</div>
+                            <div class="polar-chart-subtitle">Net Promoter Score</div>
+                            <div class="polar-chart-canvas-wrapper">
+                                <canvas ref="polarChartNPS"></canvas>
                             </div>
-                            <div class="chart-container semaforo-container">
-                                <div class="semaforo-semicircular-wrapper">
-                                    <div class="semaforo-semicircular">
-                                        <svg class="semaforo-svg" viewBox="0 0 200 100">
-                                            <!-- Fondo del semáforo completo -->
-                                            <path d="M 15 100 A 85 85 0 0 1 185 100 L 100 100 Z" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2"/>
-                                            <!-- Zona roja (0-50%) -->
-                                            <path d="M 15 100 A 85 85 0 0 1 100 100 L 100 100 Z" fill="#ef4444" opacity="0.3"/>
-                                            <!-- Zona amarilla (50-70%) -->
-                                            <path d="M 100 100 A 85 85 0 0 0 140 100 L 100 100 Z" fill="#f59e0b" opacity="0.3"/>
-                                            <!-- Zona verde (70-100%) -->
-                                            <path d="M 140 100 A 85 85 0 0 0 185 100 L 100 100 Z" fill="#10b981" opacity="0.3"/>
-                                            <!-- Indicador actual -->
-                                            <path :d="getSemaforoPath(getValorIndicador('nps'))" 
-                                                  :fill="getSemaforoColor(getValorIndicador('nps'))"
-                                                  opacity="0.8"
-                                                  stroke="#fff" stroke-width="2"/>
-                                        </svg>
-                                        <div class="semaforo-valor">{{ getValorIndicador('nps') }}%</div>
-                                    </div>
-                                    <div class="semaforo-respuestas">
-                                        Nº de Respuestas: {{ getTotalRespuestas('nps') }}
-                                    </div>
-                                </div>
-                            </div>
+                            <div class="polar-chart-value">{{ getValorIndicador('nps') }}%</div>
+                            <div class="polar-chart-responses">Nº de Respuestas: {{ getTotalRespuestas('nps') }}</div>
                         </div>
                     </div>
                     <!-- Cantidad de Respuestas por Área -->
                     <div class="charts-grid">
                         <div class="chart-card full-width">
-                            <div class="chart-header">
+                            <div class="chart-header" style="justify-items: center;">
                                 <h3>Cantidad de Respuestas por Área</h3>
                                 <p>Diferenciado por indicador</p>
                             </div>
-                            <div class="chart-container">
+                            <div class="chart-container chart-container-full-width">
                                 <canvas ref="encuestasAreaChart"></canvas>
                             </div>
                         </div>
                     </div>
 
                     <!-- Distribución NPS -->
-                    <div class="charts-grid" v-if="mostrarIndicador('nps')">
-                        <div class="chart-card">
-                            <div class="chart-header">
-                                <h3>Distribución NPS</h3>
-                                <p>Promotores, Pasivos y Detractores</p>
-                            </div>
+                    <div class="chart-card">
+                        <div class="chart-header" style="justify-items: center;">
+                            <h3>Distribución NPS</h3>
+                            <p>Promotores, Pasivos y Detractores</p>
+                        </div>
+
+                        <!-- Contenedor flexible: Chart a la izquierda + tarjetas a la derecha -->
+                        <div class="chart-content-flex" style="display: flex;">
                             <div class="chart-container">
                                 <canvas ref="distribucionNPSChart"></canvas>
+                            </div>
+
+                            <!-- Tarjetas de porcentajes ahora al lado -->
+                            <div class="nps-distribution-cards">
+                                <div class="nps-card promotores">
+                                    <div class="nps-card-header">
+                                        <span class="nps-label">Promotores</span>
+                                        <span class="nps-range">(9-10)</span>
+                                    </div>
+                                    <div class="nps-percentage">{{ getNPSPorcentaje('promotores') }}%</div>
+                                    <div class="nps-bar">
+                                        <div class="nps-bar-fill promotores" :style="{ width: getNPSPorcentaje('promotores') + '%' }"></div>
+                                    </div>
+                                    <div class="nps-count">{{ getNPSCount('promotores') }} respuestas</div>
+                                </div>
+
+                                <div class="nps-card pasivos">
+                                    <div class="nps-card-header">
+                                        <span class="nps-label">Pasivos</span>
+                                        <span class="nps-range">(7-8)</span>
+                                    </div>
+                                    <div class="nps-percentage">{{ getNPSPorcentaje('pasivos') }}%</div>
+                                    <div class="nps-bar">
+                                        <div class="nps-bar-fill pasivos" :style="{ width: getNPSPorcentaje('pasivos') + '%' }"></div>
+                                    </div>
+                                    <div class="nps-count">{{ getNPSCount('pasivos') }} respuestas</div>
+                                </div>
+
+                                <div class="nps-card detractores">
+                                    <div class="nps-card-header">
+                                        <span class="nps-label">Detractores</span>
+                                        <span class="nps-range">(1-6)</span>
+                                    </div>
+                                    <div class="nps-percentage">{{ getNPSPorcentaje('detractores') }}%</div>
+                                    <div class="nps-bar">
+                                        <div class="nps-bar-fill detractores" :style="{ width: getNPSPorcentaje('detractores') + '%' }"></div>
+                                    </div>
+                                    <div class="nps-count">{{ getNPSCount('detractores') }} respuestas</div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
+
                     <!-- Relación Nivel vs Cantidad de Encuestas -->
                     <div class="charts-grid" v-for="tipo in tiposIndicadoresActivos" :key="tipo">
                         <div class="chart-card full-width">
-                            <div class="chart-header">
+                            <div class="chart-header" style="justify-items: center;">
                                 <h3>Relación Nivel de {{ tipo.toUpperCase() }} vs Cantidad de Encuestas</h3>
                                 <p>Por día o por mes según el rango seleccionado</p>
                             </div>
-                            <div class="chart-container">
+                            <div class="chart-container chart-container-full-width">
                                 <canvas :ref="`relacionChart_${tipo}`"></canvas>
                             </div>
                         </div>
@@ -298,11 +274,11 @@
                     <!-- Indicadores y Dimensiones -->
                     <div class="charts-grid" v-for="tipo in tiposIndicadoresActivos" :key="'dim-' + tipo">
                         <div class="chart-card full-width" v-if="estadisticas.indicadoresDimensiones && estadisticas.indicadoresDimensiones[tipo] && estadisticas.indicadoresDimensiones[tipo].length > 0">
-                            <div class="chart-header">
+                            <div class="chart-header" style="justify-items: center;">
                                 <h3>{{ tipo.toUpperCase() }} - Dimensiones</h3>
                                 <p>Distribución por dimensión</p>
                             </div>
-                            <div class="chart-container">
+                            <div class="chart-container chart-container-full-width">
                                 <canvas :ref="`dimensionesChart_${tipo}`"></canvas>
                             </div>
                         </div>
@@ -409,12 +385,17 @@ export default {
                 encuestasPorArea: [],
                 relacionNivelEncuestas: {},
                 indicadoresDimensiones: {},
-                distribucionNPS: {}
+                distribucionNPS: {},
+                distribucionCSAT: {},
+                distribucionFCR: {}
             },
             
             // Charts
             encuestasAreaChart: null,
             distribucionNPSChart: null,
+            polarChartCSAT: null,
+            polarChartFCR: null,
+            polarChartNPS: null,
             relacionChartRefs: {},
             dimensionesChartRefs: {}
         }
@@ -542,8 +523,16 @@ export default {
                         });
                     }
                     
+                    // Esperar a que el DOM esté completamente listo antes de renderizar gráficos
                     this.$nextTick(() => {
-                        this.renderizarGraficos();
+                        setTimeout(() => {
+                            // Asegurar que los gráficos se destruyan antes de recrearlos
+                            this.destruirGraficos();
+                            // Renderizar gráficos después de un pequeño delay para asegurar que el DOM está listo
+                            setTimeout(() => {
+                                this.renderizarGraficos();
+                            }, 50);
+                        }, 100);
                     });
                 } else {
                     const errorText = await response.text();
@@ -633,19 +622,105 @@ export default {
             }
         },
 
+        getNPSCount(tipo) {
+            try {
+                if (!this.estadisticas || !this.estadisticas.distribucionNPS) {
+                    return 0;
+                }
+                const data = this.estadisticas.distribucionNPS;
+                return data[tipo] || 0;
+            } catch (error) {
+                return 0;
+            }
+        },
+
+        getCSATDistribucion() {
+            // Necesitamos obtener datos de CSAT: Muy Satisfechos (4), Satisfechos (3), y el resto
+            // Por ahora retornamos datos dummy, necesitaríamos una API para obtener estos datos
+            // O podemos calcularlos desde estadisticas si están disponibles
+            const total = this.getTotalRespuestas('csat');
+            const satisfechos = Math.round(total * (this.getValorIndicador('csat') / 100));
+            const noSatisfechos = total - satisfechos;
+            
+            return {
+                satisfechos: satisfechos,
+                noSatisfechos: noSatisfechos,
+                total: total
+            };
+        },
+
+        getFCRDistribucion() {
+            // FCR: Sí (valor_principal = 0) y No (valor_principal = 1)
+            const total = this.getTotalRespuestas('fcr');
+            const si = Math.round(total * (this.getValorIndicador('fcr') / 100));
+            const no = total - si;
+            
+            return {
+                si: si,
+                no: no,
+                total: total
+            };
+        },
+
+        getNPSDistribucion() {
+            // NPS: Promotores (9-10), Pasivos (7-8), Detractores (1-6)
+            if (!this.estadisticas || !this.estadisticas.distribucionNPS) {
+                return {
+                    promotores: 0,
+                    pasivos: 0,
+                    detractores: 0,
+                    total: 0
+                };
+            }
+            const data = this.estadisticas.distribucionNPS;
+            return {
+                promotores: data.promotores || 0,
+                pasivos: data.pasivos || 0,
+                detractores: data.detractores || 0,
+                total: data.total || 0
+            };
+        },
+
+        getNPSPorcentaje(tipo) {
+            try {
+                if (!this.estadisticas || !this.estadisticas.distribucionNPS) {
+                    return 0;
+                }
+                const data = this.estadisticas.distribucionNPS;
+                const total = data.total || 0;
+                if (total === 0) return 0;
+                const count = data[tipo] || 0;
+                return Math.round((count / total) * 100);
+            } catch (error) {
+                return 0;
+            }
+        },
+
+        getTendenciaIndicador(tipo) {
+            // TODO: Implementar cálculo de tendencia comparando con período anterior
+            // Por ahora retornamos null para no mostrar tendencia
+            return null;
+        },
+
+
         getSemaforoPath(valor) {
             // Asegurar que el valor sea un número válido
             const numValor = typeof valor === 'number' ? valor : parseFloat(valor) || 0;
             
             // Crear un arco semicircular basado en el valor (0-100)
+            // El arco va de izquierda (0%) a derecha (100%)
             const centerX = 100;
             const centerY = 100;
             const radius = 85;
             const startAngle = Math.PI; // 180 grados (izquierda)
             const endAngle = 0; // 0 grados (derecha)
             
-            // Calcular el ángulo actual basado en el valor (asegurar que esté entre 0 y 100)
-            const percentage = Math.min(100, Math.max(0, numValor)) / 100;
+            // Calcular el porcentaje del arco basado en el valor (0-100)
+            // Asegurar que el valor esté entre 0 y 100
+            const clampedValor = Math.min(100, Math.max(0, numValor));
+            const percentage = clampedValor / 100; // 0-100 -> 0-1
+            
+            // Calcular el ángulo actual basado en el porcentaje
             const currentAngle = startAngle - (startAngle - endAngle) * percentage;
             
             // Punto de inicio (extremo izquierdo)
@@ -666,13 +741,25 @@ export default {
         getSemaforoColor(valor) {
             // Asegurar que el valor sea un número válido
             const numValor = typeof valor === 'number' ? valor : parseFloat(valor) || 0;
-            if (numValor >= 70) return '#10b981'; // Verde
+            // Verde cuando >= 80% (buenas calificaciones)
+            if (numValor >= 80) return '#10b981'; // Verde
             if (numValor >= 50) return '#f59e0b'; // Amarillo
             return '#ef4444'; // Rojo
         },
 
         renderizarGraficos() {
             this.destruirGraficos();
+            
+            // Polar Area Charts para indicadores
+            if (this.mostrarIndicador('csat')) {
+                this.renderizarPolarChart('csat');
+            }
+            if (this.mostrarIndicador('fcr')) {
+                this.renderizarPolarChart('fcr');
+            }
+            if (this.mostrarIndicador('nps')) {
+                this.renderizarPolarChart('nps');
+            }
             
             // Gráfico de encuestas por área
             this.renderizarGraficoEncuestasArea();
@@ -691,6 +778,207 @@ export default {
             this.tiposIndicadoresActivos.forEach(tipo => {
                 this.renderizarGraficoDimensiones(tipo);
             });
+        },
+
+        renderizarPolarChart(tipo) {
+            const refName = `polarChart${tipo.toUpperCase()}`;
+            const canvas = this.$refs[refName];
+            if (!canvas) {
+                console.warn(`Canvas ${refName} no encontrado`);
+                return;
+            }
+
+            // Verificar que el canvas tenga contexto
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.warn(`No se pudo obtener contexto del canvas ${refName}`);
+                return;
+            }
+
+            // Destruir gráfico anterior si existe
+            const chartName = `polarChart${tipo.toUpperCase()}`;
+            if (this[chartName]) {
+                this[chartName].destroy();
+                this[chartName] = null;
+            }
+
+            let polarData = [];
+            let polarColors = [];
+            let labels = [];
+            let fullLabels = []; // Labels completos con toda la información para tooltips
+            let total = 0;
+
+            if (tipo === 'nps') {
+                // NPS: Promotores (verde), Pasivos (amarillo), Detractores (rojo)
+                const distribucion = this.getNPSDistribucion();
+                total = distribucion.total || 0;
+                
+                if (total > 0) {
+                    const promotores = distribucion.promotores || 0;
+                    const pasivos = distribucion.pasivos || 0;
+                    const detractores = distribucion.detractores || 0;
+                    
+                    const porcentajePromotores = Math.round((promotores / total) * 100);
+                    const porcentajePasivos = Math.round((pasivos / total) * 100);
+                    const porcentajeDetractores = Math.round((detractores / total) * 100);
+                    
+                    // Ordenar de mayor a menor para que el más grande sea verde
+                    const segmentos = [
+                        { valor: porcentajePromotores, color: '#10b981', label: `Promotores (9-10)\n${porcentajePromotores}%\n${promotores} respuestas`, count: promotores },
+                        { valor: porcentajePasivos, color: '#f59e0b', label: `Pasivos (7-8)\n${porcentajePasivos}%\n${pasivos} respuestas`, count: pasivos },
+                        { valor: porcentajeDetractores, color: '#ef4444', label: `Detractores (1-6)\n${porcentajeDetractores}%\n${detractores} respuestas`, count: detractores }
+                    ];
+                    
+                    // Ordenar por valor (mayor a menor)
+                    segmentos.sort((a, b) => b.valor - a.valor);
+                    
+                    polarData = segmentos.map(s => s.valor);
+                    polarColors = segmentos.map(s => s.color);
+                    labels = segmentos.map(s => s.label.split('\n')[0]); // Solo el título para labels
+                    fullLabels = segmentos.map(s => s.label); // Labels completos para tooltips
+                }
+            } else if (tipo === 'csat') {
+                // CSAT: Satisfechos y Muy Satisfechos (verde), resto (rojo/amarillo)
+                const distribucion = this.getCSATDistribucion();
+                total = distribucion.total || 0;
+                
+                if (total > 0) {
+                    const satisfechos = distribucion.satisfechos || 0;
+                    const noSatisfechos = distribucion.noSatisfechos || 0;
+                    
+                    const porcentajeSatisfechos = Math.round((satisfechos / total) * 100);
+                    const porcentajeNoSatisfechos = Math.round((noSatisfechos / total) * 100);
+                    
+                    // Verde para satisfechos (siempre el más grande), rojo para no satisfechos
+                    polarData = [porcentajeSatisfechos, porcentajeNoSatisfechos];
+                    polarColors = ['#10b981', '#ef4444'];
+                    fullLabels = [
+                        `Satisfechos\n${porcentajeSatisfechos}%\n${satisfechos} respuestas`,
+                        `No Satisfechos\n${porcentajeNoSatisfechos}%\n${noSatisfechos} respuestas`
+                    ];
+                    labels = fullLabels.map(l => l.split('\n')[0]);
+                }
+            } else if (tipo === 'fcr') {
+                // FCR: Sí (verde), No (rojo)
+                const distribucion = this.getFCRDistribucion();
+                total = distribucion.total || 0;
+                
+                if (total > 0) {
+                    const si = distribucion.si || 0;
+                    const no = distribucion.no || 0;
+                    
+                    const porcentajeSi = Math.round((si / total) * 100);
+                    const porcentajeNo = Math.round((no / total) * 100);
+                    
+                    // Verde para Sí (siempre el más grande si es > 80%), rojo para No
+                    polarData = [porcentajeSi, porcentajeNo];
+                    polarColors = porcentajeSi >= porcentajeNo ? ['#10b981', '#ef4444'] : ['#ef4444', '#10b981'];
+                    fullLabels = [
+                        `Sí\n${porcentajeSi}%\n${si} respuestas`,
+                        `No\n${porcentajeNo}%\n${no} respuestas`
+                    ];
+                    labels = fullLabels.map(l => l.split('\n')[0]);
+                }
+            }
+
+            // Si no hay datos, crear segmentos vacíos
+            if (polarData.length === 0) {
+                polarData = [0, 0, 0];
+                polarColors = ['#10b981', '#f59e0b', '#ef4444'];
+                labels = ['Sin datos', 'Sin datos', 'Sin datos'];
+            }
+
+            try {
+                this[chartName] = new Chart(ctx, {
+                    type: 'polarArea',
+                    data: {
+                        labels: labels.map(l => l.split('\n')[0]), // Solo el título para labels
+                        datasets: [{
+                            data: polarData,
+                            backgroundColor: polarColors,
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    padding: 15,
+                                    usePointStyle: true,
+                                    font: {
+                                        size: 12
+                                    },
+                                    generateLabels: (chart) => {
+                                        const data = chart.data;
+                                        if (data.labels.length && data.datasets.length) {
+                                            return data.labels.map((label, i) => {
+                                                const value = data.datasets[0].data[i];
+                                                const color = data.datasets[0].backgroundColor[i];
+                                                return {
+                                                    text: `${label}: ${value}%`,
+                                                    fillStyle: color,
+                                                    strokeStyle: color,
+                                                    lineWidth: 2,
+                                                    hidden: false,
+                                                    index: i
+                                                };
+                                            });
+                                        }
+                                        return [];
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                callbacks: {
+                                    label: (context) => {
+                                        const index = context.dataIndex;
+                                        if (fullLabels[index]) {
+                                            return fullLabels[index].split('\n');
+                                        }
+                                        return context.label + ': ' + context.parsed.r.toFixed(1) + '%';
+                                    }
+                                }
+                            }
+                        },
+                        animation: {
+                            animateRotate: true,
+                            animateScale: true
+                        },
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                max: 100,
+                                display: true,
+                                ticks: {
+                                    stepSize: 10,
+                                    font: {
+                                        size: 10
+                                    },
+                                    color: '#6b7280'
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.1)'
+                                },
+                                pointLabels: {
+                                    display: true,
+                                    font: {
+                                        size: 11
+                                    },
+                                    color: '#1f2937'
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error(`Error creando polar chart ${tipo}:`, error);
+            }
         },
 
         renderizarGraficoEncuestasArea() {
@@ -735,6 +1023,7 @@ export default {
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     scales: {
                         y: {
                             beginAtZero: true,
@@ -970,6 +1259,18 @@ export default {
             if (this.distribucionNPSChart) {
                 this.distribucionNPSChart.destroy();
                 this.distribucionNPSChart = null;
+            }
+            if (this.polarChartCSAT) {
+                this.polarChartCSAT.destroy();
+                this.polarChartCSAT = null;
+            }
+            if (this.polarChartFCR) {
+                this.polarChartFCR.destroy();
+                this.polarChartFCR = null;
+            }
+            if (this.polarChartNPS) {
+                this.polarChartNPS.destroy();
+                this.polarChartNPS = null;
             }
             
             // Destruir gráficos de relación
@@ -1880,7 +2181,127 @@ export default {
     height: 300px;
 }
 
-/* Semáforo Semicircular */
+.chart-container-full-width {
+    width: 100%;
+}
+
+.chart-container-full-width canvas {
+    width: 100% !important;
+    max-width: 100%;
+}
+
+/* Gauge Charts */
+.gauge-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    padding: 1rem;
+    position: relative;
+}
+
+.gauge-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.gauge-svg {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    display: block;
+}
+
+.gauge-needle {
+    transition: transform 0.5s ease;
+}
+
+.gauge-value-container {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.gauge-value {
+    font-size: 3rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
+    text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8);
+}
+
+.gauge-tendencia {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.gauge-tendencia.tendencia-up {
+    color: #10b981;
+}
+
+.gauge-tendencia.tendencia-down {
+    color: #ef4444;
+}
+
+.gauge-tendencia i {
+    font-size: 0.75rem;
+}
+
+.gauge-respuestas {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: #6b7280;
+    font-weight: 500;
+    text-align: center;
+}
+
+.gauge-labels {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 10px;
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-weight: 500;
+    z-index: 5;
+}
+
+.gauge-label-left {
+    margin-left: 0;
+}
+
+.gauge-label-center-left {
+    margin-left: calc(25% - 10px);
+}
+
+.gauge-label-center-right {
+    margin-right: calc(25% - 10px);
+}
+
+.gauge-label-right {
+    margin-right: 0;
+}
+
+/* Semáforo Semicircular (mantener para compatibilidad) */
 .semaforo-container {
     display: flex;
     align-items: center;
@@ -1922,6 +2343,50 @@ export default {
     color: #1f2937;
     z-index: 10;
     text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8);
+}
+
+.semaforo-valor-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -30%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.semaforo-valor-container .semaforo-valor {
+    position: static;
+    transform: none;
+    font-size: 3rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
+    text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8);
+}
+
+.semaforo-tendencia {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.semaforo-tendencia.tendencia-up {
+    color: #10b981;
+}
+
+.semaforo-tendencia.tendencia-down {
+    color: #ef4444;
+}
+
+.semaforo-tendencia i {
+    font-size: 0.75rem;
 }
 
 .semaforo-respuestas {
@@ -2147,6 +2612,193 @@ export default {
     .data-table th,
     .data-table td {
         padding: 0.75rem 1rem;
+    }
+}
+
+/* NPS Distribution Cards */
+.nps-distribution-cards {
+    width: -webkit-fill-available;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: auto;
+    padding-top: 1rem;
+}
+
+.nps-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 2px solid #e5e7eb;
+    transition: all 0.3s ease;
+}
+
+.nps-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.nps-card.promotores {
+    border-color: #10b981;
+    background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+}
+
+.nps-card.pasivos {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+}
+
+.nps-card.detractores {
+    border-color: #ef4444;
+    background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+}
+
+.nps-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.nps-label {
+    font-weight: 600;
+    font-size: 1rem;
+    color: #1f2937;
+}
+
+.nps-card.promotores .nps-label {
+    color: #059669;
+}
+
+.nps-card.pasivos .nps-label {
+    color: #d97706;
+}
+
+.nps-card.detractores .nps-label {
+    color: #dc2626;
+}
+
+.nps-range {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.nps-percentage {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.nps-card.promotores .nps-percentage {
+    color: #059669;
+}
+
+.nps-card.pasivos .nps-percentage {
+    color: #d97706;
+}
+
+.nps-card.detractores .nps-percentage {
+    color: #dc2626;
+}
+
+.nps-bar {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.nps-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.nps-bar-fill.promotores {
+    background: #10b981;
+}
+
+.nps-bar-fill.pasivos {
+    background: #f59e0b;
+}
+
+.nps-bar-fill.detractores {
+    background: #ef4444;
+}
+
+.nps-count {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* Polar Charts Section */
+.polar-charts-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.polar-chart-item {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.polar-chart-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+}
+
+.polar-chart-subtitle {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+}
+
+.polar-chart-canvas-wrapper {
+    width: 100%;
+    height: 250px;
+    position: relative;
+    margin: 1rem 0;
+}
+
+.polar-chart-canvas-wrapper canvas {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.polar-chart-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #4f46e5;
+    margin: 1rem 0 0.5rem;
+}
+
+.polar-chart-responses {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .polar-charts-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .polar-chart-canvas-wrapper {
+        height: 200px;
     }
 }
 </style>

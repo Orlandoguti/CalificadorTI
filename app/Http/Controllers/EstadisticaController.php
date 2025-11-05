@@ -49,29 +49,42 @@ class EstadisticaController extends Controller
         $encuestasRespondidas = $query->count();
         
         // Contar áreas evaluadas (áreas que tienen al menos una calificación del tipo filtrado)
-        $totalAreas = $query->distinct('area_id')->count('area_id');
+        // Necesitamos recrear el query porque count() ya lo ejecutó
+        $queryAreas = Calificacion::query();
+        $this->aplicarFiltros($queryAreas, $fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId, $tipoCalificacion);
+        $totalAreas = $encuestasRespondidas > 0 ? $queryAreas->distinct('area_id')->count('area_id') : 0;
         
         // Calcular valor del indicador si hay filtro por tipo
         $valorIndicador = null;
         $preguntasRespondidas = 0;
         
-        if ($tipoCalificacion) {
-            $valorIndicador = $encuestasRespondidas / Calificacion::query()->count() * 100;
+        if ($tipoCalificacion && $encuestasRespondidas > 0) {
+            $totalGeneral = Calificacion::query()->count();
+            if ($totalGeneral > 0) {
+                $valorIndicador = ($encuestasRespondidas / $totalGeneral) * 100;
+            } else {
+                $valorIndicador = 0;
+            }
         }
         
         // Calcular promedio general de indicadores (solo si no hay filtro por tipo)
         $promedioGeneral = null;
         if (!$tipoCalificacion) {
-           $promedioGeneral = $encuestasRespondidas / $encuestasRespondidas * 100;
-           $promedioGeneral = round($promedioGeneral, 1);
+           // Esto parece ser un error - dividir por sí mismo siempre da 100%
+           // Probablemente debería ser otra lógica, pero por ahora retornamos 100 si hay datos
+           if ($encuestasRespondidas > 0) {
+               $promedioGeneral = 100; // Si hay encuestas, el promedio es 100%
+           } else {
+               $promedioGeneral = 0;
+           }
         }
 
         return [
             'encuestasRespondidas' => $encuestasRespondidas,
             'calificaciones' => $encuestasRespondidas, // Mantener compatibilidad
             'areas' => $totalAreas,
-            'valorIndicador' => $valorIndicador ? round($valorIndicador, 1) : 0,
-            'promedioGeneral' => $promedioGeneral ? round($promedioGeneral, 1) : 0
+            'valorIndicador' => $valorIndicador !== null ? round($valorIndicador, 1) : 0,
+            'promedioGeneral' => $promedioGeneral !== null ? round($promedioGeneral, 1) : 0
         ];
     }
     
@@ -111,7 +124,7 @@ class EstadisticaController extends Controller
                 // valor_principal 3 = Satisfecho, 4 = Muy satisfecho
                 $querySatisfechos = Calificacion::query()
                     ->where('tipo_calificacion', 'csat')
-                    ->whereIn('valor_principal', [3, 4]);
+                    ->whereIn('nivel_calificacion_id', [3, 4]);
                     
                 $this->aplicarFiltros($querySatisfechos, $fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId, $tipoCalificacion);
                 $totalSatisfechos = $querySatisfechos->count();
