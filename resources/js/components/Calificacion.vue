@@ -14,7 +14,7 @@
                     <h1 class="calificador-titulo">¿Cómo fue tu atención?</h1>
                     <div class="ubicacion-info">
                         <i class="fas fa-map-marker-alt"></i>
-                        <span>{{ areaSeleccionada.codigo }} - {{ sedeNombre.toUpperCase() }}</span>
+                        <span>{{ formatearTexto(areaSeleccionada.codigo + ' - ' + sedeNombre) }}</span>
                     </div>
                 </div>
                 
@@ -740,6 +740,20 @@ respuestaUnica: {
         }
     },
     methods: {
+        capitalizarPalabras(texto) {
+            return texto
+            .toLowerCase()
+            .split(' ')
+            .map(p => p.charAt(0).toUpperCase() + p.slice(1))
+            .join(' ');
+        },
+        formatearTexto(texto) {
+            if (!texto) return '';
+            return texto
+            .split(' - ')
+            .map(p => this.capitalizarPalabras(p))
+            .join(' - ');
+        },
         /**
          * 🔥 NUEVO: Determinar la secuencia de tipos de calificación según el área
          */
