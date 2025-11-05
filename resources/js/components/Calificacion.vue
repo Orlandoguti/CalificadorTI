@@ -2155,7 +2155,6 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
             } catch (e) {
                 // fallback silencioso
             }
-            this.solicitarPantallaCompleta();
         },
 
         cancelarCuestionario() {

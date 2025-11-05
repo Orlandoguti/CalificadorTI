@@ -312,7 +312,7 @@
 
 					<!-- Top 10 FCR - Dimensiones más respondidas -->
 					<!-- Top 10 combinado (CSAT, FCR, NPS) - Horizontal + Tabla -->
-					<div class="charts-grid" style="margin-top: 1rem;">
+					<div class="charts-grid" v-if="activeTab === 'dashboard'" style="margin-top: 1rem;">
 						<div class="chart-card full-width">
 							<div class="chart-header" style="justify-items: center;">
 								<h3>Top 10 - Preguntas más respondidas</h3>
@@ -348,7 +348,7 @@
 						</div>
 					</div>
 					<!-- Indicadores y Dimensiones -->
-					<div class="charts-grid" v-for="tipo in tiposIndicadoresActivos" :key="'dim-' + tipo">
+					<div class="charts-grid" v-if="activeTab === 'dashboard'" v-for="tipo in tiposIndicadoresActivos" :key="'dim-' + tipo">
 						<div class="chart-card full-width">
 							<div class="chart-header" style="justify-items: center;">
 								<h3>Distribución por dimensión</h3>
