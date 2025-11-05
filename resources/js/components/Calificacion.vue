@@ -905,6 +905,8 @@ respuestaUnica: {
          */
         async iniciarTipoCalificacion(tipo) {
             console.log('🚀 Iniciando tipo de calificación:', tipo);
+    // Intentar entrar a pantalla completa al iniciar un tipo
+    this.solicitarPantallaCompleta();
             
             if (tipo === 'nps') {
                 // Iniciar NPS
@@ -1109,6 +1111,7 @@ respuestaUnica: {
         },
 
         async iniciarCuestionario(nivel) {
+    this.solicitarPantallaCompleta();
             this.nivelSeleccionado = nivel;
             this.cargando = true;
             
@@ -2146,6 +2149,13 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
             }
             this.mostrarAgradecimiento = false;
             this.reiniciarCalificacion();
+            // 🔥 Refrescar pantalla en tablet al finalizar el flujo
+            try {
+                window.location.reload();
+            } catch (e) {
+                // fallback silencioso
+            }
+            this.solicitarPantallaCompleta();
         },
 
         cancelarCuestionario() {
@@ -2183,6 +2193,22 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
             'opcion_unica_texto_libre': 'Selecciona una opción o escribe tu respuesta'
         };
         return tipos[tipo] || '';
+    },
+
+    // 🔥 Pantalla completa (para tablets)
+    solicitarPantallaCompleta() {
+        const elem = document.documentElement;
+        try {
+            if (!document.fullscreenElement && elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (!document.fullscreenElement && elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (!document.fullscreenElement && elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            }
+        } catch (e) {
+            // Ignorar errores si el navegador bloquea fullscreen fuera de gesto de usuario
+        }
     },
 
         // Métodos auxiliares para SVGs (sin cambios)
@@ -3002,6 +3028,7 @@ esOpcionSeleccionada(opcion, index) {
 
 // 🔥 NUEVO: Métodos para NPS inicial
 iniciarArrastreNPS(event) {
+    this.solicitarPantallaCompleta();
     this.arrastrando = true;
     this.actualizarIndicadorNPS(event);
     document.addEventListener('mousemove', this.actualizarIndicadorNPS);
@@ -3037,6 +3064,7 @@ seleccionarValorNPS(valor) {
 
 // 🔥 NUEVO: Click en el track del slider
 clickIndicadorNPS(event) {
+    this.solicitarPantallaCompleta();
     const rect = event.currentTarget.getBoundingClientRect();
     const clientX = event.clientX || (event.touches && event.touches[0].clientX);
     const percentage = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
@@ -3114,6 +3142,7 @@ seleccionarValorIndicador(valor) {
 },
 
 async iniciarConNPS() {
+    this.solicitarPantallaCompleta();
     // 🔥 CORRECCIÓN: Usar el nivel correcto desde la base de datos (nivel 1 para NPS)
     const valorGuardado = this.respuestaIndicadorNPS; // Guardar el valor del slider
     this.nivelSeleccionado = { id: 1, nombre: 'NPS', valor: valorGuardado };
@@ -3288,6 +3317,7 @@ async iniciarConNPS() {
 },
 
 async iniciarConFCR(resuelto, opcion) {
+    this.solicitarPantallaCompleta();
     this.respuestaFCR = resuelto;
     const opcionSeleccionada = opcion;
     

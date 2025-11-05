@@ -627,7 +627,41 @@ class EstadisticaController extends Controller
                 }
             }
 
-            $resultados[$tipo] = $dimensionesData;
+            // Agregar TOP por preguntas principales (preguntas creadas) del mismo tipo
+            $preguntasQuery = DB::table('respuestas_calificacion')
+                ->join('calificaciones', 'respuestas_calificacion.calificacion_id', '=', 'calificaciones.id')
+                ->join('preguntas', 'respuestas_calificacion.pregunta_id', '=', 'preguntas.id')
+                ->where('preguntas.tipo_pregunta', $tipo)
+                ->select(
+                    'preguntas.pregunta as dimension',
+                    DB::raw('COUNT(*) as total')
+                )
+                ->groupBy('preguntas.pregunta');
+
+            // Filtros por fecha, área y sede
+            if ($fechaInicio) {
+                $preguntasQuery->where('calificaciones.created_at', '>=', $fechaInicio);
+            }
+            if ($fechaFin) {
+                $preguntasQuery->where('calificaciones.created_at', '<=', $fechaFin . ' 23:59:59');
+            }
+            if ($areaId) {
+                $preguntasQuery->where('calificaciones.area_id', $areaId);
+            }
+            if ($sedeId) {
+                $preguntasQuery->where('calificaciones.sede_id', $sedeId);
+            }
+
+            $preguntasData = $preguntasQuery->get()->map(function($row) {
+                return [
+                    'dimension' => $row->dimension,
+                    'tipo' => 'pregunta',
+                    'total' => (int)$row->total
+                ];
+            })->toArray();
+
+            // Combinar dimensiones (subpreguntas) con preguntas principales
+            $resultados[$tipo] = array_merge($dimensionesData, $preguntasData);
         }
 
         return $resultados;

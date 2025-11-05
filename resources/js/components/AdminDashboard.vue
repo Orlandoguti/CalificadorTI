@@ -258,32 +258,107 @@
                     </div>
 
 
-                    <!-- Relación Nivel vs Cantidad de Encuestas -->
-                    <div class="charts-grid" v-for="tipo in tiposIndicadoresActivos" :key="tipo">
-                        <div class="chart-card full-width">
-                            <div class="chart-header" style="justify-items: center;">
-                                <h3>Relación Nivel de {{ tipo.toUpperCase() }} vs Cantidad de Encuestas</h3>
-                                <p>Por día o por mes según el rango seleccionado</p>
-                            </div>
-                            <div class="chart-container chart-container-full-width">
-                                <canvas :ref="`relacionChart_${tipo}`"></canvas>
-                            </div>
-                        </div>
-                    </div>
+					<!-- Cantidad de encuestas por día por tipo (CSAT, NPS, FCR) -->
+					<div class="charts-grid">
+						<div class="chart-card full-width">
+							<div class="chart-header" style="justify-items: center;">
+								<h3>CSAT, NPS y FCR por día</h3>
+							</div>
+							<div class="chart-container chart-container-full-width">
+								<canvas ref="encuestasPorDiaTiposChart"></canvas>
+							</div>
+						</div>
+                        
+					</div>                   
 
-                    <!-- Indicadores y Dimensiones -->
-                    <div class="charts-grid" v-for="tipo in tiposIndicadoresActivos" :key="'dim-' + tipo">
-                        <div class="chart-card full-width" v-if="estadisticas.indicadoresDimensiones && estadisticas.indicadoresDimensiones[tipo] && estadisticas.indicadoresDimensiones[tipo].length > 0">
-                            <div class="chart-header" style="justify-items: center;">
-                                <h3>{{ tipo.toUpperCase() }} - Dimensiones</h3>
-                                <p>Distribución por dimensión</p>
-                            </div>
-                            <div class="chart-container chart-container-full-width">
-                                <canvas :ref="`dimensionesChart_${tipo}`"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+					<!-- Tabla: últimos 5 días con distribución por tipo -->
+					<div class="table-card">
+						<div class="table-header" style="justify-items: center;">
+							<h3>Últimos 5 días - Cantidad y distribución por tipo</h3>
+						</div>
+						<div class="table-container" >
+							<table class="data-table" style="text-align-last: center;">
+								<thead>
+									<tr>
+										<th>Fecha</th>
+										<th>CSAT</th>
+										<th>% CSAT</th>
+										<th>FCR</th>
+										<th>% FCR</th>
+										<th>NPS</th>
+										<th>% NPS</th>
+										<th>Total día</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr v-for="row in tablaUltimosDias" :key="row.fecha">
+										<td>{{ formatearFecha(row.fecha) }}</td>
+										<td>{{ row.csat }}</td>
+										<td>{{ row.total > 0 ? Math.round((row.csat / row.total) * 100) : 0 }}%</td>
+										<td>{{ row.fcr }}</td>
+										<td>{{ row.total > 0 ? Math.round((row.fcr / row.total) * 100) : 0 }}%</td>
+										<td>{{ row.nps }}</td>
+										<td>{{ row.total > 0 ? Math.round((row.nps / row.total) * 100) : 0 }}%</td>
+										<td>{{ row.total }}</td>
+									</tr>
+									<tr v-if="tablaUltimosDias.length === 0">
+										<td colspan="8">Sin datos para el rango seleccionado</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+                </div>               
+
+					<!-- Top 10 FCR - Dimensiones más respondidas -->
+					<!-- Top 10 combinado (CSAT, FCR, NPS) - Horizontal + Tabla -->
+					<div class="charts-grid" style="margin-top: 1rem;">
+						<div class="chart-card full-width">
+							<div class="chart-header" style="justify-items: center;">
+								<h3>Top 10 - Preguntas más respondidas</h3>
+								<p>CSAT, FCR y NPS combinados</p>
+							</div>
+							<div class="chart-container chart-container-full-width">
+								<canvas ref="top10AllDimChart"></canvas>
+							</div>
+
+							<div class="table-container" style="margin-top: 1rem;">
+								<table class="data-table" style="text-align-last: center;">
+									<thead>
+										<tr>
+											<th>#</th>
+											<th>Tipo</th>
+											<th>Pregunta / Dimensión</th>
+											<th>Cantidad</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr v-for="(item, idx) in getTop10DimensionesAll()" :key="item.tipo + item.dimension + idx">
+											<td>{{ idx + 1 }}</td>
+											<td>{{ item.tipo.toUpperCase() }}</td>
+											<td>{{ item.dimension }}</td>
+											<td>{{ item.count }}</td>
+										</tr>
+										<tr v-if="getTop10DimensionesAll().length === 0">
+											<td colspan="4">Sin datos</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+					<!-- Indicadores y Dimensiones -->
+					<div class="charts-grid" v-for="tipo in tiposIndicadoresActivos" :key="'dim-' + tipo">
+						<div class="chart-card full-width">
+							<div class="chart-header" style="justify-items: center;">
+								<h3>Distribución por dimensión</h3>
+								<p>{{ tipo.toUpperCase() }}</p>
+							</div>
+							<div class="chart-container chart-container-full-width">
+								<canvas :ref="`dimensionesChart_${tipo}`"></canvas>
+							</div>
+						</div>
+					</div>
 
                 <!-- Preguntas Management -->
                 <div v-if="activeTab === 'preguntas'" class="tab-content">
@@ -397,7 +472,11 @@ export default {
             polarChartFCR: null,
             polarChartNPS: null,
             relacionChartRefs: {},
-            dimensionesChartRefs: {}
+				dimensionesChartRefs: {},
+				encuestasPorDiaTiposChart: null,
+				top10FCRDimensionesChart: null,
+				top10DimChartRefs: {},
+				top10AllDimChart: null
         }
     },
     computed: {
@@ -444,6 +523,40 @@ export default {
                 return [this.filters.tipoCalificacion];
             }
             return ['csat', 'fcr', 'nps'];
+        },
+
+        // Tabla: últimos 5 días con totales por tipo y distribución
+        tablaUltimosDias() {
+            const porTipo = this.estadisticas?.relacionNivelEncuestas || {};
+            const tipos = ['csat', 'fcr', 'nps'];
+            const fechasSet = new Set();
+            tipos.forEach(t => {
+                (porTipo[t] || []).forEach(item => fechasSet.add(item.fecha));
+            });
+            const fechas = Array.from(fechasSet).sort();
+            // Tomar solo los últimos 5
+            const ultimas = fechas.slice(Math.max(0, fechas.length - 5));
+
+            const mapPorTipo = {};
+            tipos.forEach(t => {
+                mapPorTipo[t] = {};
+                (porTipo[t] || []).forEach(item => {
+                    mapPorTipo[t][item.fecha] = item.cantidad_encuestas || 0;
+                });
+            });
+
+            return ultimas.map(f => {
+                const csat = mapPorTipo.csat[f] || 0;
+                const fcr = mapPorTipo.fcr[f] || 0;
+                const nps = mapPorTipo.nps[f] || 0;
+                const total = csat + fcr + nps;
+                return { fecha: f, csat, fcr, nps, total };
+            });
+        },
+
+        tieneDimensionesDisponibles() {
+            const dims = this.estadisticas?.indicadoresDimensiones || {};
+            return ['csat', 'fcr', 'nps'].some(t => Array.isArray(dims[t]) && dims[t].length > 0);
         }
     },
     async mounted() {
@@ -769,15 +882,16 @@ export default {
                 this.renderizarGraficoDistribucionNPS();
             }
             
-            // Gráficos de relación nivel vs encuestas
-            this.tiposIndicadoresActivos.forEach(tipo => {
-                this.renderizarGraficoRelacion(tipo);
-            });
+			// Gráfico de cantidad de encuestas por día por tipo
+			this.renderizarGraficoEncuestasPorDiaTipos();
             
             // Gráficos de dimensiones
             this.tiposIndicadoresActivos.forEach(tipo => {
                 this.renderizarGraficoDimensiones(tipo);
             });
+
+            // Top 10 combinado (horizontal)
+            this.renderizarTop10DimensionesAll();
         },
 
         renderizarPolarChart(tipo) {
@@ -1000,20 +1114,24 @@ export default {
                 }
             });
 
-            const labels = Object.keys(areasMap);
-            const datasets = tipos
+			let labels = Object.keys(areasMap);
+			const datasets = tipos
                 .filter(tipo => this.mostrarIndicador(tipo))
                 .map((tipo, index) => {
                     const colors = ['#4f46e5', '#10b981', '#f59e0b'];
                     return {
                         label: tipo.toUpperCase(),
-                        data: labels.map(area => areasMap[area][tipo] || 0),
+						data: labels.length ? labels.map(area => areasMap[area][tipo] || 0) : [0],
                         backgroundColor: colors[index],
                         borderColor: colors[index],
                         borderWidth: 1,
                         borderRadius: 4
                     };
                 });
+
+			if (labels.length === 0) {
+				labels = ['Sin datos'];
+			}
             
             this.encuestasAreaChart = new Chart(ctx, {
                 type: 'bar',
@@ -1082,6 +1200,68 @@ export default {
                 }
             });
         },
+
+		// Nuevo: gráfico combinado de cantidad de encuestas por día por tipo
+		renderizarGraficoEncuestasPorDiaTipos() {
+			const canvas = this.$refs.encuestasPorDiaTiposChart;
+			if (!canvas) return;
+
+			// Destruir previo si existe
+			if (this.encuestasPorDiaTiposChart) {
+				this.encuestasPorDiaTiposChart.destroy();
+				this.encuestasPorDiaTiposChart = null;
+			}
+
+			const dataPorTipo = this.estadisticas.relacionNivelEncuestas || {};
+			const tipos = ['csat', 'fcr', 'nps'].filter(t => this.mostrarIndicador(t));
+			const setFechas = new Set();
+			tipos.forEach(t => {
+				(dataPorTipo[t] || []).forEach(item => setFechas.add(item.fecha));
+			});
+			let labelsRaw = Array.from(setFechas).sort();
+			let labels = labelsRaw.map(f => this.formatearFecha(f));
+
+			const colorMap = { csat: '#4f46e5', fcr: '#10b981', nps: '#f59e0b' };
+
+			const datasets = tipos.map(tipo => {
+				const mapPorFecha = {};
+				(dataPorTipo[tipo] || []).forEach(item => {
+					mapPorFecha[item.fecha] = item.cantidad_encuestas || 0;
+				});
+				return {
+					label: tipo.toUpperCase(),
+					data: labelsRaw.length ? labelsRaw.map(f => mapPorFecha[f] || 0) : [0],
+					borderColor: colorMap[tipo],
+					backgroundColor: colorMap[tipo] + '1A',
+					borderWidth: 2,
+					tension: 0.3,
+					fill: false
+				};
+			});
+
+			if (labels.length === 0) {
+				labelsRaw = [''];
+				labels = ['Sin datos'];
+			}
+
+			this.encuestasPorDiaTiposChart = new Chart(canvas, {
+				type: 'line',
+				data: { labels, datasets },
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					scales: {
+						y: {
+							beginAtZero: true,
+							title: { display: true, text: 'Cantidad de encuestas' }
+						}
+					},
+					plugins: {
+						legend: { position: 'top' }
+					}
+				}
+			});
+		},
 
         renderizarGraficoRelacion(tipo) {
             const refName = `relacionChart_${tipo}`;
@@ -1177,17 +1357,16 @@ export default {
             const ctx = Array.isArray(refs) ? refs[0] : refs;
             if (!ctx) return;
 
-            const dimensiones = this.estadisticas.indicadoresDimensiones?.[tipo] || [];
-            if (dimensiones.length === 0) return;
+			const dimensiones = this.estadisticas.indicadoresDimensiones?.[tipo] || [];
 
             // Destruir gráfico anterior si existe
             if (this.dimensionesChartRefs[`_chart_${tipo}`]) {
                 this.dimensionesChartRefs[`_chart_${tipo}`].destroy();
             }
 
-            // Preparar datos para el gráfico
-            const labels = [];
-            const dataValues = [];
+			// Preparar datos para el gráfico
+			let labels = [];
+			let dataValues = [];
 
             dimensiones.forEach(dim => {
                 if (dim.tipo === 'opcion_unica' && dim.respuestas) {
@@ -1201,7 +1380,12 @@ export default {
                 }
             });
 
-            this.dimensionesChartRefs[`_chart_${tipo}`] = new Chart(ctx, {
+			if (dimensiones.length === 0) {
+				labels = ['Sin datos'];
+				dataValues = [0];
+			}
+
+			this.dimensionesChartRefs[`_chart_${tipo}`] = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
@@ -1233,6 +1417,151 @@ export default {
                 }
             });
         },
+
+		// Top 10 por tipo - Dimensiones/Preguntas más respondidas (barras horizontales)
+		renderizarTop10Dimensiones(tipo) {
+			const refName = `top10DimChart_${tipo}`;
+			const canvas = this.$refs[refName];
+			if (!canvas) return;
+
+			const chartKey = `_top10_${tipo}`;
+			if (this.top10DimChartRefs[chartKey]) {
+				this.top10DimChartRefs[chartKey].destroy();
+				this.top10DimChartRefs[chartKey] = null;
+			}
+
+			const top10 = this.getTop10Dimensiones(tipo);
+			if (top10.length === 0) return;
+
+			const labels = top10.map(i => this.acortarTexto(i.dimension, 60));
+			const data = top10.map(i => i.count);
+
+			this.top10DimChartRefs[chartKey] = new Chart(canvas, {
+				type: 'bar',
+				data: {
+					labels: labels,
+					datasets: [{
+						label: 'Respuestas',
+						data: data,
+						backgroundColor: '#06b6d4',
+						borderColor: '#0891b2',
+						borderWidth: 1,
+						borderRadius: 4
+					}]
+				},
+				options: {
+					indexAxis: 'y',
+					responsive: true,
+					maintainAspectRatio: false,
+					scales: {
+						x: {
+							beginAtZero: true,
+							ticks: { stepSize: 1 }
+						}
+					},
+					plugins: {
+						legend: { display: false }
+					}
+				}
+			});
+		},
+
+		// Obtener Top 10 filas para tabla por tipo
+		getTop10Dimensiones(tipo) {
+			const dimensiones = this.estadisticas?.indicadoresDimensiones?.[tipo] || [];
+			if (!Array.isArray(dimensiones) || dimensiones.length === 0) return [];
+			const items = dimensiones.map(d => {
+				let count = 0;
+				if (d.tipo === 'opcion_unica' && Array.isArray(d.respuestas)) {
+					count = d.respuestas.reduce((acc, r) => acc + (r.cantidad || 0), 0);
+				} else {
+					count = d.total || 0;
+				}
+				return { dimension: d.dimension, count };
+			});
+			items.sort((a, b) => b.count - a.count);
+			return items.slice(0, 10);
+		},
+
+		// Obtener Top 10 combinado (todos los tipos)
+		getTop10DimensionesAll() {
+			const dims = this.estadisticas?.indicadoresDimensiones || {};
+			const tipos = ['csat', 'fcr', 'nps'];
+			const items = [];
+			tipos.forEach(tipo => {
+				const arr = dims[tipo] || [];
+				arr.forEach(d => {
+					let count = 0;
+					if (d.tipo === 'opcion_unica' && Array.isArray(d.respuestas)) {
+						count = d.respuestas.reduce((acc, r) => acc + (r.cantidad || 0), 0);
+					} else {
+						count = d.total || 0;
+					}
+					items.push({ tipo, dimension: d.dimension, count });
+				});
+			});
+			items.sort((a, b) => b.count - a.count);
+			return items.slice(0, 10);
+		},
+
+		// Render Top 10 combinado (horizontal)
+		renderizarTop10DimensionesAll() {
+			const canvas = this.$refs.top10AllDimChart;
+			if (!canvas) return;
+
+			if (this.top10AllDimChart) {
+				this.top10AllDimChart.destroy();
+				this.top10AllDimChart = null;
+			}
+
+			let top10 = this.getTop10DimensionesAll();
+			const isEmpty = top10.length === 0;
+			if (isEmpty) {
+				top10 = [{ tipo: 'csat', dimension: 'Sin datos', count: 0 }];
+			}
+
+			const labels = top10.map(i => this.acortarTexto(i.dimension, 60));
+			const data = top10.map(i => i.count);
+			const colorMap = { csat: '#4f46e5', fcr: '#10b981', nps: '#f59e0b' };
+			const backgroundColors = top10.map(i => colorMap[i.tipo] || '#6b7280');
+			const borderColors = top10.map(i => (colorMap[i.tipo] || '#6b7280'));
+
+			this.top10AllDimChart = new Chart(canvas, {
+				type: 'bar',
+				data: {
+					labels,
+					datasets: [{
+						label: 'Respuestas',
+						data,
+						backgroundColor: backgroundColors,
+						borderColor: borderColors,
+						borderWidth: 1,
+						borderRadius: 4
+					}]
+				},
+				options: {
+					indexAxis: 'y',
+					responsive: true,
+					maintainAspectRatio: false,
+					plugins: {
+						legend: { display: false },
+						tooltip: {
+							callbacks: {
+								title: (ctx) => ctx[0]?.label || '',
+								label: (ctx) => {
+									const i = ctx.dataIndex;
+									const item = top10[i];
+									return `${item.tipo.toUpperCase()}: ${ctx.parsed.x}`;
+								}
+							}
+						}
+					},
+					scales: {
+						x: { beginAtZero: true, ticks: { stepSize: 1 } }
+					}
+				}
+			});
+		},
 
         formatearFecha(fecha) {
             if (!fecha) return '';
@@ -1279,15 +1608,38 @@ export default {
                     this.relacionChartRefs[key].destroy();
                 }
             });
-            this.relacionChartRefs = {};
+				this.relacionChartRefs = {};
+				
+				if (this.encuestasPorDiaTiposChart) {
+					this.encuestasPorDiaTiposChart.destroy();
+					this.encuestasPorDiaTiposChart = null;
+				}
+				
+				if (this.top10FCRDimensionesChart) {
+					this.top10FCRDimensionesChart.destroy();
+					this.top10FCRDimensionesChart = null;
+				}
             
-            // Destruir gráficos de dimensiones
+				// Destruir gráficos de dimensiones
             Object.keys(this.dimensionesChartRefs).forEach(key => {
                 if (this.dimensionesChartRefs[key]) {
                     this.dimensionesChartRefs[key].destroy();
                 }
             });
             this.dimensionesChartRefs = {};
+
+				// Destruir top 10 por tipo
+				Object.keys(this.top10DimChartRefs).forEach(key => {
+					if (this.top10DimChartRefs[key]) {
+						this.top10DimChartRefs[key].destroy();
+					}
+				});
+				this.top10DimChartRefs = {};
+
+				if (this.top10AllDimChart) {
+					this.top10AllDimChart.destroy();
+					this.top10AllDimChart = null;
+				}
         },
 
         // Métodos utilitarios
