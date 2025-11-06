@@ -82,14 +82,14 @@
                                     </option>
                                 </select>
                             </div>
-                            <div class="filter-actions">
+                            <div class="filter-actions" style="justify-self: end;">
                                 <button @click="cargarEstadisticas" class="btn-primary">
                                     <i class="fas fa-sync-alt"></i> Actualizar
                                 </button>
-                                <button @click="exportarReporte" class="btn-secondary">
+                               <!-- <button @click="exportarReporte" class="btn-secondary">
                                     <i class="fas fa-download"></i> Exportar
-                                </button>
-                            </div>
+                                </button>--> 
+                            </div>  
                         </div>
                     </div>
 
@@ -344,18 +344,6 @@
 										</tr>
 									</tbody>
 								</table>
-							</div>
-						</div>
-					</div>
-					<!-- Indicadores y Dimensiones -->
-					<div class="charts-grid" v-if="activeTab === 'dashboard'" v-for="tipo in tiposIndicadoresActivos" :key="'dim-' + tipo">
-						<div class="chart-card full-width">
-							<div class="chart-header" style="justify-items: center;">
-								<h3>Distribución por dimensión</h3>
-								<p>{{ tipo.toUpperCase() }}</p>
-							</div>
-							<div class="chart-container chart-container-full-width">
-								<canvas :ref="`dimensionesChart_${tipo}`"></canvas>
 							</div>
 						</div>
 					</div>
