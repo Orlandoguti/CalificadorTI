@@ -16,10 +16,12 @@ class EstadisticaController extends Controller
         try {
             $fechaInicio = $request->get('fecha_inicio');
             $fechaFin = $request->get('fecha_fin');
-            $areaId = $request->get('area_id');
-            $nivelId = $request->get('nivel_id');
-            $sedeId = $request->get('sede_id');
+            $areaId = $request->get('area_id') ? (int)$request->get('area_id') : null;
+            $nivelId = $request->get('nivel_id') ? (int)$request->get('nivel_id') : null;
+            $sedeId = $request->get('sede_id') ? (int)$request->get('sede_id') : null;
             $tipoCalificacion = $request->get('tipo_calificacion'); // FCR, CSAT, NPS
+
+            \Log::info("Estadisticas - Filtros recibidos: fechaInicio={$fechaInicio}, fechaFin={$fechaFin}, areaId={$areaId}, nivelId={$nivelId}, sedeId={$sedeId}, tipoCalificacion={$tipoCalificacion}");
 
             $estadisticas = [
                 'totales' => $this->getTotales($fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId, $tipoCalificacion),
@@ -27,12 +29,15 @@ class EstadisticaController extends Controller
                 'encuestasPorArea' => $this->getEncuestasPorArea($fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId, $tipoCalificacion),
                 'relacionNivelEncuestas' => $this->getRelacionNivelEncuestas($fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId, $tipoCalificacion),
                 'indicadoresDimensiones' => $this->getIndicadoresDimensiones($fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId, $tipoCalificacion),
-                'distribucionNPS' => $this->getDistribucionNPS($fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId)
+                'distribucionNPS' => $this->getDistribucionNPS($fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId),
+                'csatDimensionesPorNivel' => $this->getCSATDimensionesPorNivel($fechaInicio, $fechaFin, $areaId, $sedeId)
             ];
 
             return response()->json($estadisticas);
             
         } catch (\Exception $e) {
+            \Log::error("Error en estadisticas: " . $e->getMessage());
+            \Log::error("Stack trace: " . $e->getTraceAsString());
             return response()->json(['error' => 'Error al cargar estadísticas: ' . $e->getMessage()], 500);
         }
     }
@@ -690,9 +695,14 @@ class EstadisticaController extends Controller
 
         $total = $query->count();
         
+        \Log::info("NPS Distribución - Filtros: areaId={$areaId}, sedeId={$sedeId}, fechaInicio={$fechaInicio}, fechaFin={$fechaFin}");
+        \Log::info("NPS Distribución - Total calificaciones NPS: {$total}");
+        
         $promotores = (clone $query)->whereBetween('valor_principal', [9, 10])->count();
         $pasivos = (clone $query)->whereBetween('valor_principal', [7, 8])->count();
         $detractores = (clone $query)->whereBetween('valor_principal', [1, 6])->count();
+
+        \Log::info("NPS Distribución - Promotores: {$promotores}, Pasivos: {$pasivos}, Detractores: {$detractores}");
 
         return [
             'promotores' => $promotores,
@@ -700,5 +710,201 @@ class EstadisticaController extends Controller
             'detractores' => $detractores,
             'total' => $total
         ];
+    }
+
+    /**
+     * Obtener dimensiones CSAT agrupadas por nivel de calificación (1-4)
+     */
+    private function getCSATDimensionesPorNivel($fechaInicio, $fechaFin, $areaId, $sedeId)
+    {
+        $niveles = [1, 2, 3, 4]; // 1: Muy Insatisfecho, 2: Insatisfecho, 3: Satisfecho, 4: Muy Satisfecho
+        $resultados = [];
+
+        foreach ($niveles as $nivel) {
+            // Primero obtener las calificaciones CSAT con este nivel y filtros aplicados
+            // CSAT se identifica por: tipo_calificacion = 'csat' O (tipo_calificacion es NULL/vacío)
+            // Como nivel_calificacion_id ya está filtrado por $nivel (1-4), no necesitamos verificar eso de nuevo
+            $calificacionesQuery = DB::table('calificaciones')
+                ->where('nivel_calificacion_id', $nivel)
+                ->where(function($q) {
+                    $q->where('tipo_calificacion', 'csat')
+                      ->orWhereNull('tipo_calificacion')
+                      ->orWhere('tipo_calificacion', '');
+                });
+
+            // Aplicar filtros a las calificaciones
+            if ($fechaInicio) {
+                $calificacionesQuery->where('created_at', '>=', $fechaInicio);
+            }
+            if ($fechaFin) {
+                $calificacionesQuery->where('created_at', '<=', $fechaFin . ' 23:59:59');
+            }
+            if ($areaId) {
+                $calificacionesQuery->where('area_id', $areaId);
+            }
+            if ($sedeId) {
+                $calificacionesQuery->where('sede_id', $sedeId);
+            }
+
+            $calificacionIds = $calificacionesQuery->pluck('id')->toArray();
+            
+            // Debug: verificar la consulta SQL generada
+            $sql = $calificacionesQuery->toSql();
+            $bindings = $calificacionesQuery->getBindings();
+            \Log::info("CSAT Nivel {$nivel} - SQL: {$sql}");
+            \Log::info("CSAT Nivel {$nivel} - Bindings: " . json_encode($bindings));
+
+            \Log::info("CSAT Nivel {$nivel} - Filtros: areaId={$areaId}, sedeId={$sedeId}, fechaInicio={$fechaInicio}, fechaFin={$fechaFin}");
+            \Log::info("CSAT Nivel {$nivel} - Calificaciones encontradas: " . count($calificacionIds));
+
+            if (empty($calificacionIds)) {
+                $resultados[$nivel] = [];
+                continue;
+            }
+
+            // Ahora buscar las respuestas para estas calificaciones
+
+            $respuestasQuery = DB::table('respuestas_calificacion')
+                ->whereIn('calificacion_id', $calificacionIds)
+                ->leftJoin('opciones_pregunta', 'respuestas_calificacion.opcion_seleccionada_id', '=', 'opciones_pregunta.id')
+                ->join('preguntas', 'respuestas_calificacion.pregunta_id', '=', 'preguntas.id')
+                ->where('preguntas.tipo_pregunta', 'csat');
+
+            $respuestas = $respuestasQuery->select(
+                'opciones_pregunta.opcion',
+                'respuestas_calificacion.opciones_seleccionadas',
+                'respuestas_calificacion.respuesta_texto'
+            )->get();
+            
+            // Debug: verificar la consulta SQL de respuestas
+            $sqlRespuestas = $respuestasQuery->toSql();
+            $bindingsRespuestas = $respuestasQuery->getBindings();
+            \Log::info("CSAT Nivel {$nivel} - SQL Respuestas: {$sqlRespuestas}");
+            \Log::info("CSAT Nivel {$nivel} - Bindings Respuestas: " . json_encode($bindingsRespuestas));
+            
+            \Log::info("CSAT Nivel {$nivel} - Calificaciones encontradas: " . count($calificacionIds));
+            \Log::info("CSAT Nivel {$nivel} - Respuestas encontradas: " . count($respuestas));
+            
+            if (count($respuestas) > 0) {
+                \Log::info("CSAT Nivel {$nivel} - Primera respuesta: " . json_encode($respuestas->first()));
+            } else {
+                // Verificar si hay respuestas sin filtros
+                $totalRespuestasSinFiltros = DB::table('respuestas_calificacion')
+                    ->join('calificaciones', 'respuestas_calificacion.calificacion_id', '=', 'calificaciones.id')
+                    ->join('preguntas', 'respuestas_calificacion.pregunta_id', '=', 'preguntas.id')
+                    ->where('calificaciones.nivel_calificacion_id', $nivel)
+                    ->where('preguntas.tipo_pregunta', 'csat')
+                    ->count();
+                \Log::info("CSAT Nivel {$nivel} - Total respuestas sin filtros: {$totalRespuestasSinFiltros}");
+                
+                // Verificar IDs de calificaciones con este nivel y filtros
+                $califIdsQuery = DB::table('calificaciones')
+                    ->where('nivel_calificacion_id', $nivel);
+                if ($fechaInicio) {
+                    $califIdsQuery->where('created_at', '>=', $fechaInicio);
+                }
+                if ($fechaFin) {
+                    $califIdsQuery->where('created_at', '<=', $fechaFin . ' 23:59:59');
+                }
+                if ($areaId) {
+                    $califIdsQuery->where('area_id', $areaId);
+                }
+                if ($sedeId) {
+                    $califIdsQuery->where('sede_id', $sedeId);
+                }
+                $califIds = $califIdsQuery->pluck('id')->toArray();
+                \Log::info("CSAT Nivel {$nivel} - IDs de calificaciones con filtros: " . implode(', ', array_slice($califIds, 0, 10)));
+                
+                // Verificar respuestas para estas calificaciones
+                if (!empty($califIds)) {
+                    $respuestasParaCalifs = DB::table('respuestas_calificacion')
+                        ->whereIn('calificacion_id', $califIds)
+                        ->count();
+                    \Log::info("CSAT Nivel {$nivel} - Respuestas para estas calificaciones: {$respuestasParaCalifs}");
+                }
+            }
+
+            $opcionesCount = [];
+            $textoLibreCount = 0;
+
+            foreach ($respuestas as $respuesta) {
+                $tieneTextoLibre = !empty($respuesta->respuesta_texto);
+                $esOpcionOtro = false;
+                
+                // 1. Procesar opción única (desde opciones_pregunta)
+                if (!empty($respuesta->opcion)) {
+                    $opcion = $respuesta->opcion;
+                    // Verificar si es "Otro - especifique"
+                    $esOpcionOtro = (stripos($opcion, 'otro') !== false || stripos($opcion, 'especifique') !== false);
+                    
+                    if ($esOpcionOtro && $tieneTextoLibre) {
+                        // Si es "Otro" y tiene texto, contar solo como texto libre (no como opción)
+                        $textoLibreCount++;
+                    } else {
+                        // Contar como opción normal (incluso si es "Otro" sin texto)
+                        if (!isset($opcionesCount[$opcion])) {
+                            $opcionesCount[$opcion] = 0;
+                        }
+                        $opcionesCount[$opcion]++;
+                        
+                        // Si tiene texto libre y NO es "Otro", también contar como texto libre
+                        if ($tieneTextoLibre && !$esOpcionOtro) {
+                            $textoLibreCount++;
+                        }
+                    }
+                }
+                
+                // 2. Procesar opciones múltiples (array JSON)
+                if (!empty($respuesta->opciones_seleccionadas)) {
+                    $opciones = json_decode($respuesta->opciones_seleccionadas, true);
+                    if (is_array($opciones)) {
+                        foreach ($opciones as $opcion) {
+                            if (!empty($opcion)) {
+                                if (!isset($opcionesCount[$opcion])) {
+                                    $opcionesCount[$opcion] = 0;
+                                }
+                                $opcionesCount[$opcion]++;
+                            }
+                        }
+                    }
+                }
+                
+                // 3. Contar texto libre si no hay opción seleccionada pero sí hay texto
+                if (empty($respuesta->opcion) && 
+                    empty($respuesta->opciones_seleccionadas) && 
+                    $tieneTextoLibre) {
+                    $textoLibreCount++;
+                }
+            }
+
+            $dimensionesData = [];
+            
+            // Agregar todas las opciones con sus conteos
+            foreach ($opcionesCount as $opcion => $cantidad) {
+                $dimensionesData[] = [
+                    'dimension' => $opcion,
+                    'tipo' => 'opcion',
+                    'total' => (int)$cantidad
+                ];
+            }
+            
+            // Agregar texto libre si existe
+            if ($textoLibreCount > 0) {
+                $dimensionesData[] = [
+                    'dimension' => 'Texto Libre / Otro',
+                    'tipo' => 'texto_libre',
+                    'total' => (int)$textoLibreCount
+                ];
+            }
+
+            // Ordenar por cantidad (mayor a menor)
+            usort($dimensionesData, function($a, $b) {
+                return $b['total'] - $a['total'];
+            });
+
+            $resultados[$nivel] = $dimensionesData;
+        }
+
+        return $resultados;
     }
 }

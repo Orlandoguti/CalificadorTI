@@ -258,7 +258,7 @@
                     </div>
 
 
-					<!-- Cantidad de encuestas por día por tipo (CSAT, NPS, FCR) -->
+					<!-- Cantidad de encuestas por día por tipo (CSAT, NPS, FCR) 
 					<div class="charts-grid">
 						<div class="chart-card full-width">
 							<div class="chart-header" style="justify-items: center;">
@@ -269,13 +269,154 @@
 							</div>
 						</div>
                         
-					</div>                   
+					</div>-->
+                    
+					<!-- CSAT: Tablas y gráficos por nivel de calificación -->
+					<div v-if="mostrarIndicador('csat')" class="csat-niveles-section">
+						<h2 class="section-title">CSAT - Análisis por Nivel de Calificación</h2>
+						
+						<div class="csat-niveles-grid">
+							<!-- Muy Insatisfechos (Nivel 1) -->
+							<div class="csat-nivel-card">
+								<div class="csat-nivel-header nivel-1">
+									<h3>Muy Insatisfechos</h3>
+								</div>
+								<div class="csat-nivel-content">
+									<div class="chart-container-small">
+										<canvas :ref="'csatNivel1Chart'"></canvas>
+									</div>
+									<div class="table-container-small">
+										<table class="data-table-small">
+											<thead>
+												<tr>
+													<th>CSAT</th>
+													<th v-for="dimension in getDimensionesUnicasCSAT(1)" :key="dimension">
+														{{ dimension }}
+													</th>
+												</tr>
+											</thead>
+											<tbody>
+												<tr>
+													<td class="nivel-label nivel-1">Muy Insatisfechos</td>
+													<td v-for="dimension in getDimensionesUnicasCSAT(1)" :key="dimension">
+														{{ getCantidadDimensionCSAT(1, dimension) }}
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+
+							<!-- Insatisfechos (Nivel 2) -->
+							<div class="csat-nivel-card">
+								<div class="csat-nivel-header nivel-2">
+									<h3>Insatisfechos</h3>
+								</div>
+								<div class="csat-nivel-content">
+									<div class="chart-container-small">
+										<canvas :ref="'csatNivel2Chart'"></canvas>
+									</div>
+									<div class="table-container-small">
+										<table class="data-table-small">
+											<thead>
+												<tr>
+													<th>CSAT</th>
+													<th v-for="dimension in getDimensionesUnicasCSAT(2)" :key="dimension">
+														{{ dimension }}
+													</th>
+												</tr>
+											</thead>
+											<tbody>
+												<tr>
+													<td class="nivel-label nivel-2">Insatisfechos</td>
+													<td v-for="dimension in getDimensionesUnicasCSAT(2)" :key="dimension">
+														{{ getCantidadDimensionCSAT(2, dimension) }}
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+
+							<!-- Satisfechos (Nivel 3) -->
+							<div class="csat-nivel-card">
+								<div class="csat-nivel-header nivel-3">
+									<h3>Satisfechos</h3>
+								</div>
+								<div class="csat-nivel-content">
+									<div class="chart-container-small">
+										<canvas :ref="'csatNivel3Chart'"></canvas>
+									</div>
+									<div class="table-container-small">
+										<table class="data-table-small">
+											<thead>
+												<tr>
+													<th>CSAT</th>
+													<th v-for="dimension in getDimensionesUnicasCSAT(3)" :key="dimension">
+														{{ dimension }}
+													</th>
+												</tr>
+											</thead>
+											<tbody>
+												<tr>
+													<td class="nivel-label nivel-3">Satisfechos</td>
+													<td v-for="dimension in getDimensionesUnicasCSAT(3)" :key="dimension">
+														{{ getCantidadDimensionCSAT(3, dimension) }}
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+
+							<!-- Muy Satisfechos (Nivel 4) -->
+							<div class="csat-nivel-card">
+								<div class="csat-nivel-header nivel-4">
+									<h3>Muy Satisfechos</h3>
+								</div>
+								<div class="csat-nivel-content">
+									<div class="chart-container-small">
+										<canvas :ref="'csatNivel4Chart'"></canvas>
+									</div>
+									<div class="table-container-small">
+										<table class="data-table-small">
+											<thead>
+												<tr>
+													<th>CSAT</th>
+													<th v-for="dimension in getDimensionesUnicasCSAT(4)" :key="dimension">
+														{{ dimension }}
+													</th>
+												</tr>
+											</thead>
+											<tbody>
+												<tr>
+													<td class="nivel-label nivel-4">Muy Satisfechos</td>
+													<td v-for="dimension in getDimensionesUnicasCSAT(4)" :key="dimension">
+														{{ getCantidadDimensionCSAT(4, dimension) }}
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
 
 					<!-- Tabla: últimos 5 días con distribución por tipo -->
 					<div class="table-card">
 						<div class="table-header" style="justify-items: center;">
 							<h3>Últimos 5 días - Cantidad y distribución por tipo</h3>
 						</div>
+						
+						<!-- Gráfico combinado: Barras para total y líneas para CSAT, NPS, FCR -->
+						<div class="chart-container" style="margin-bottom: 1.5rem;">
+							<canvas ref="ultimos5DiasComboChart"></canvas>
+						</div>
+						
 						<div class="table-container" >
 							<table class="data-table" style="text-align-last: center;">
 								<thead>
@@ -464,7 +605,9 @@ export default {
 				encuestasPorDiaTiposChart: null,
 				top10FCRDimensionesChart: null,
 				top10DimChartRefs: {},
-				top10AllDimChart: null
+				top10AllDimChart: null,
+				csatNivelCharts: {}, // Gráficos por nivel CSAT
+				ultimos5DiasComboChart: null // Gráfico combinado últimos 5 días
         }
     },
     computed: {
@@ -522,7 +665,7 @@ export default {
                 (porTipo[t] || []).forEach(item => fechasSet.add(item.fecha));
             });
             const fechas = Array.from(fechasSet).sort();
-            // Tomar solo los últimos 5
+            // Tomar solo los últimos 5 (incluyendo el día actual)
             const ultimas = fechas.slice(Math.max(0, fechas.length - 5));
 
             const mapPorTipo = {};
@@ -880,6 +1023,14 @@ export default {
 
             // Top 10 combinado (horizontal)
             this.renderizarTop10DimensionesAll();
+
+            // Gráficos CSAT por nivel
+            if (this.mostrarIndicador('csat')) {
+                this.renderizarGraficosCSATPorNivel();
+            }
+
+            // Gráfico combinado últimos 5 días
+            this.renderizarGraficoUltimos5DiasCombo();
         },
 
         renderizarPolarChart(tipo) {
@@ -1628,6 +1779,20 @@ export default {
 					this.top10AllDimChart.destroy();
 					this.top10AllDimChart = null;
 				}
+
+				// Destruir gráficos CSAT por nivel
+				Object.keys(this.csatNivelCharts).forEach(key => {
+					if (this.csatNivelCharts[key]) {
+						this.csatNivelCharts[key].destroy();
+					}
+				});
+				this.csatNivelCharts = {};
+
+				// Destruir gráfico combinado últimos 5 días
+				if (this.ultimos5DiasComboChart) {
+					this.ultimos5DiasComboChart.destroy();
+					this.ultimos5DiasComboChart = null;
+				}
         },
 
         // Métodos utilitarios
@@ -1753,6 +1918,267 @@ export default {
                 timer: tipo === 'success' ? 2000 : 3000,
                 showConfirmButton: tipo !== 'success',
                 confirmButtonColor: tipo === 'success' ? '#10b981' : '#ef4444'
+            });
+        },
+
+        // Métodos para CSAT por nivel
+        getDimensionesUnicasCSAT(nivel) {
+            // Obtener todas las opciones únicas de todos los niveles para mostrar columnas consistentes
+            const todosLosNiveles = [1, 2, 3, 4];
+            const opcionesSet = new Set();
+            
+            todosLosNiveles.forEach(n => {
+                const datos = this.estadisticas?.csatDimensionesPorNivel?.[n] || [];
+                datos.forEach(dim => {
+                    // Para opciones únicas, usar la dimensión directamente (que es la opción seleccionada)
+                    // Para otros tipos, usar el nombre de la dimensión
+                    opcionesSet.add(dim.dimension);
+                });
+            });
+            
+            return Array.from(opcionesSet).sort();
+        },
+
+        getCantidadDimensionCSAT(nivel, opcion) {
+            const datos = this.estadisticas?.csatDimensionesPorNivel?.[nivel] || [];
+            const dimData = datos.find(d => d.dimension === opcion);
+            
+            if (!dimData) return 0;
+            
+            // Ahora siempre devolvemos el total directamente
+            return dimData.total || 0;
+        },
+
+        getDatosGraficoCSATNivel(nivel) {
+            // Para el gráfico, solo mostrar opciones que tienen datos en este nivel
+            const datos = this.estadisticas?.csatDimensionesPorNivel?.[nivel] || [];
+            const labels = [];
+            const data = [];
+            
+            datos.forEach(dim => {
+                const cantidad = dim.total || 0;
+                
+                if (cantidad > 0) {
+                    // Mostrar la opción seleccionada (dimension)
+                    labels.push(this.acortarTexto(dim.dimension, 30));
+                    data.push(cantidad);
+                }
+            });
+            
+            return { labels, data };
+        },
+
+        renderizarGraficosCSATPorNivel() {
+            [1, 2, 3, 4].forEach(nivel => {
+                const refName = `csatNivel${nivel}Chart`;
+                const canvas = this.$refs[refName];
+                
+                if (!canvas) return;
+                
+                // Destruir gráfico anterior si existe
+                if (this.csatNivelCharts[refName]) {
+                    this.csatNivelCharts[refName].destroy();
+                }
+                
+                const { labels, data } = this.getDatosGraficoCSATNivel(nivel);
+                
+                // Colores por nivel
+                const colores = {
+                    1: '#dc2626', // Rojo para Muy Insatisfechos
+                    2: '#f97316', // Naranja para Insatisfechos
+                    3: '#f59e0b', // Amarillo para Satisfechos
+                    4: '#10b981'  // Verde para Muy Satisfechos
+                };
+                
+                if (labels.length === 0) {
+                    labels.push('Sin datos');
+                    data.push(0);
+                }
+                
+                this.csatNivelCharts[refName] = new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Cantidad',
+                            data: data,
+                            backgroundColor: colores[nivel],
+                            borderColor: colores[nivel],
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        return `${context.parsed.x} respuestas`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        },
+
+        renderizarGraficoUltimos5DiasCombo() {
+            const canvas = this.$refs.ultimos5DiasComboChart;
+            if (!canvas) return;
+
+            // Destruir gráfico anterior si existe
+            if (this.ultimos5DiasComboChart) {
+                this.ultimos5DiasComboChart.destroy();
+                this.ultimos5DiasComboChart = null;
+            }
+
+            const datos = this.tablaUltimosDias;
+            if (!datos || datos.length === 0) return;
+
+            // Preparar datos
+            const labels = datos.map(row => this.formatearFecha(row.fecha));
+            const totalData = datos.map(row => row.total);
+            const csatData = datos.map(row => row.csat);
+            const fcrData = datos.map(row => row.fcr);
+            const npsData = datos.map(row => row.nps);
+
+            this.ultimos5DiasComboChart = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Total día',
+                            data: totalData,
+                            type: 'bar',
+                            backgroundColor: 'rgba(99, 102, 241, 0.6)',
+                            borderColor: 'rgba(99, 102, 241, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            yAxisID: 'y',
+                            order: 1
+                        },
+                        {
+                            label: 'CSAT',
+                            data: csatData,
+                            type: 'line',
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'transparent',
+                            borderWidth: 3,
+                            tension: 0.3,
+                            fill: false,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#4f46e5',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            yAxisID: 'y1',
+                            order: 0
+                        },
+                        {
+                            label: 'FCR',
+                            data: fcrData,
+                            type: 'line',
+                            borderColor: '#10b981',
+                            backgroundColor: 'transparent',
+                            borderWidth: 3,
+                            tension: 0.3,
+                            fill: false,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#10b981',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            yAxisID: 'y1',
+                            order: 0
+                        },
+                        {
+                            label: 'NPS',
+                            data: npsData,
+                            type: 'line',
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'transparent',
+                            borderWidth: 3,
+                            tension: 0.3,
+                            fill: false,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#f59e0b',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            yAxisID: 'y1',
+                            order: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const label = context.dataset.label || '';
+                                    const value = context.parsed.y || 0;
+                                    if (context.datasetIndex === 0) {
+                                        // Total día
+                                        return `${label}: ${value}`;
+                                    } else {
+                                        // CSAT, FCR, NPS
+                                        const total = totalData[context.dataIndex];
+                                        const porcentaje = total > 0 ? Math.round((value / total) * 100) : 0;
+                                        return `${label}: ${value} (${porcentaje}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Total del día'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'CSAT, FCR, NPS'
+                            }
+                        }
+                    }
+                }
             });
         }
     },
@@ -3139,6 +3565,163 @@ export default {
     
     .polar-chart-canvas-wrapper {
         height: 200px;
+    }
+}
+
+/* CSAT Niveles Section */
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.csat-niveles-section {
+    margin: 3rem 0;
+    padding: 2rem 0;
+}
+
+.csat-niveles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.csat-nivel-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.csat-nivel-header {
+    padding: 1.25rem 1.5rem;
+    font-weight: 600;
+    color: white;
+    text-align: center;
+}
+
+.csat-nivel-header.nivel-1 {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+.csat-nivel-header.nivel-2 {
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+}
+
+.csat-nivel-header.nivel-3 {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.csat-nivel-header.nivel-4 {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.csat-nivel-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: white;
+}
+
+.csat-nivel-content {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.chart-container-small {
+    position: relative;
+    height: 250px;
+    width: 100%;
+}
+
+.table-container-small {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.data-table-small {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.data-table-small th,
+.data-table-small td {
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    border: 1px solid #e5e7eb;
+}
+
+.data-table-small th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #374151;
+    white-space: nowrap;
+    font-size: 0.8rem;
+}
+
+.data-table-small td {
+    color: #1f2937;
+}
+
+.nivel-label {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.nivel-label.nivel-1 {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.nivel-label.nivel-2 {
+    background: #fed7aa;
+    color: #9a3412;
+}
+
+.nivel-label.nivel-3 {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.nivel-label.nivel-4 {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+@media (max-width: 1024px) {
+    .csat-niveles-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .csat-niveles-section {
+        margin: 2rem 0;
+        padding: 1rem 0;
+    }
+    
+    .csat-niveles-grid {
+        gap: 1.5rem;
+    }
+    
+    .chart-container-small {
+        height: 200px;
+    }
+    
+    .data-table-small {
+        font-size: 0.75rem;
+    }
+    
+    .data-table-small th,
+    .data-table-small td {
+        padding: 0.5rem 0.25rem;
     }
 }
 </style>
