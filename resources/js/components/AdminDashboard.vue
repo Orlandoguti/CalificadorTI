@@ -163,23 +163,115 @@
 
                     <!-- Gráficos Principales -->
                     <!-- Nivel de Indicadores (Polar Area Charts) -->
+                    <div class="section-header">
+                        <h2>Indicadores de Desempeño</h2>
+                        <p>Estado actual basado en niveles de satisfacción</p>
+                    </div>
                     <div class="polar-charts-section">
-                        <div class="polar-chart-item" v-if="mostrarIndicador('csat')">
-                            <div class="polar-chart-title">CSAT</div>
+                        
+                        <div class="polar-chart-item" v-if="mostrarIndicador('csat')">                            
+                            <div class="indicador-header">
+                                    <div class="indicador-icon">
+                                        <i class="fas fa-smile"></i>
+                                    </div>
+                                    <div class="indicador-titulo">
+                                        <h3>CSAT</h3>
+                                        <p>Satisfacción del Cliente</p>
+                                    </div>
+                                </div>
                             <div class="polar-chart-canvas-wrapper">
                                 <canvas ref="polarChartCSAT"></canvas>
                             </div>
-                            <div class="polar-chart-value">{{ getValorIndicador('csat') }}%</div>
-                            <div class="polar-chart-responses">Nº de Respuestas: {{ getTotalRespuestas('csat') }}</div>
+                           <!-- <div class="polar-chart-value">{{ getValorIndicador('csat') }}%</div>-->                            
+                        <!-- Indicador CSAT -->
+                            <div class="estado-indicador-card" v-if="mostrarIndicador('csat')">                                
+                                <div class="indicador-content">
+                                    <div class="indicador-valor-container">
+                                        <div class="indicador-valor" :class="getClaseValor('csat')">
+                                            {{ getValorIndicador('csat') }}%
+                                        </div>
+                                        <div class="indicador-estado" :class="getClaseEstado('csat')">
+                                            <i :class="getIconoEstado('csat')"></i>
+                                            {{ getTextoEstado('csat') }}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="indicador-progress">
+                                        <div class="progress-labels">
+                                            <span>Crítico</span>
+                                            <span>Regular</span>
+                                            <span>Óptimo</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-segment segment-rojo" :class="{ active: getEstadoSemaforo('csat') === 'rojo' }"></div>
+                                            <div class="progress-segment segment-amarillo" :class="{ active: getEstadoSemaforo('csat') === 'amarillo' }"></div>
+                                            <div class="progress-segment segment-verde" :class="{ active: getEstadoSemaforo('csat') === 'verde' }"></div>
+                                            <div class="progress-indicator" :style="getPosicionIndicador('csat')">
+                                                <div class="indicator-dot"></div>
+                                            </div>
+                                        </div>
+                                        <div class="progress-ranges">
+                                            <span>&lt;40%</span>
+                                            <span>40-64%</span>
+                                            <span>65%+</span>
+                                        </div>
+                                        <div class="polar-chart-responses">Nº de Respuestas: {{ getTotalRespuestas('csat') }}</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="polar-chart-item" v-if="mostrarIndicador('fcr')">
-                            <div class="polar-chart-title">FCR</div>
+                        <div class="polar-chart-item" v-if="mostrarIndicador('fcr')">                            
+                            <div class="indicador-header">
+                                    <div class="indicador-icon">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                    <div class="indicador-titulo">
+                                        <h3>FCR</h3>
+                                        <p>Resolución en Primer Contacto</p>
+                                    </div>
+                                </div>
                             <div class="polar-chart-canvas-wrapper">
                                 <canvas ref="polarChartFCR"></canvas>
                             </div>
-                            <div class="polar-chart-value">{{ getValorIndicador('fcr') }}%</div>
-                            <div class="polar-chart-responses">Nº de Respuestas: {{ getTotalRespuestas('fcr') }}</div>
+                            <!--<div class="polar-chart-value">{{ getValorIndicador('fcr') }}%</div>-->                            
+                            <!-- Indicador FCR -->
+                            <div class="estado-indicador-card" v-if="mostrarIndicador('fcr')">
+                                
+                                <div class="indicador-content">
+                                    <div class="indicador-valor-container">
+                                        <div class="indicador-valor" :class="getClaseValor('fcr')">
+                                            {{ getValorIndicador('fcr') }}%
+                                        </div>
+                                        <div class="indicador-estado" :class="getClaseEstado('fcr')">
+                                            <i :class="getIconoEstado('fcr')"></i>
+                                            {{ getTextoEstado('fcr') }}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="indicador-progress">
+                                        <div class="progress-labels">
+                                            <span>Crítico</span>
+                                            <span>Regular</span>
+                                            <span>Óptimo</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-segment segment-rojo" :class="{ active: getEstadoSemaforo('fcr') === 'rojo' }"></div>
+                                            <div class="progress-segment segment-amarillo" :class="{ active: getEstadoSemaforo('fcr') === 'amarillo' }"></div>
+                                            <div class="progress-segment segment-verde" :class="{ active: getEstadoSemaforo('fcr') === 'verde' }"></div>
+                                            <div class="progress-indicator" :style="getPosicionIndicador('fcr')">
+                                                <div class="indicator-dot"></div>
+                                            </div>
+                                        </div>
+                                        <div class="progress-ranges">
+                                            <span>&lt;50%</span>
+                                            <span>50-69%</span>
+                                            <span>70%+</span>
+                                        </div>
+                                        <div class="polar-chart-responses">Nº de Respuestas: {{ getTotalRespuestas('fcr') }}</div>
+                                    </div>     
+                                </div>                                
+                            </div>
                         </div>
 
                         <!--
@@ -194,109 +286,6 @@
                         </div>
                         -->
                     </div>
-
-                     <!-- NUEVO: Indicadores de Estado Mejorados -->
-        <div class="estado-indicadores-section" v-if="mostrarSemaforoEstado()">
-            <div class="section-header">
-                <h2>Indicadores de Desempeño</h2>
-                <p>Estado actual basado en niveles de satisfacción</p>
-            </div>
-            
-            <div class="estado-indicadores-grid">
-                <!-- Indicador CSAT -->
-                <div class="estado-indicador-card" v-if="mostrarIndicador('csat')">
-                    <div class="indicador-header">
-                        <div class="indicador-icon">
-                            <i class="fas fa-smile"></i>
-                        </div>
-                        <div class="indicador-titulo">
-                            <h3>CSAT</h3>
-                            <p>Satisfacción del Cliente</p>
-                        </div>
-                    </div>
-                    
-                    <div class="indicador-content">
-                        <div class="indicador-valor-container">
-                            <div class="indicador-valor" :class="getClaseValor('csat')">
-                                {{ getValorIndicador('csat') }}%
-                            </div>
-                            <div class="indicador-estado" :class="getClaseEstado('csat')">
-                                <i :class="getIconoEstado('csat')"></i>
-                                {{ getTextoEstado('csat') }}
-                            </div>
-                        </div>
-                        
-                        <div class="indicador-progress">
-                            <div class="progress-labels">
-                                <span>Crítico</span>
-                                <span>Regular</span>
-                                <span>Óptimo</span>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-segment segment-rojo" :class="{ active: getEstadoSemaforo('csat') === 'rojo' }"></div>
-                                <div class="progress-segment segment-amarillo" :class="{ active: getEstadoSemaforo('csat') === 'amarillo' }"></div>
-                                <div class="progress-segment segment-verde" :class="{ active: getEstadoSemaforo('csat') === 'verde' }"></div>
-                                <div class="progress-indicator" :style="getPosicionIndicador('csat')">
-                                    <div class="indicator-dot"></div>
-                                </div>
-                            </div>
-                            <div class="progress-ranges">
-                                <span>&lt;40%</span>
-                                <span>40-64%</span>
-                                <span>65%+</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Indicador FCR -->
-                <div class="estado-indicador-card" v-if="mostrarIndicador('fcr')">
-                    <div class="indicador-header">
-                        <div class="indicador-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="indicador-titulo">
-                            <h3>FCR</h3>
-                            <p>Resolución en Primer Contacto</p>
-                        </div>
-                    </div>
-                    
-                    <div class="indicador-content">
-                        <div class="indicador-valor-container">
-                            <div class="indicador-valor" :class="getClaseValor('fcr')">
-                                {{ getValorIndicador('fcr') }}%
-                            </div>
-                            <div class="indicador-estado" :class="getClaseEstado('fcr')">
-                                <i :class="getIconoEstado('fcr')"></i>
-                                {{ getTextoEstado('fcr') }}
-                            </div>
-                        </div>
-                        
-                        <div class="indicador-progress">
-                            <div class="progress-labels">
-                                <span>Crítico</span>
-                                <span>Regular</span>
-                                <span>Óptimo</span>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-segment segment-rojo" :class="{ active: getEstadoSemaforo('fcr') === 'rojo' }"></div>
-                                <div class="progress-segment segment-amarillo" :class="{ active: getEstadoSemaforo('fcr') === 'amarillo' }"></div>
-                                <div class="progress-segment segment-verde" :class="{ active: getEstadoSemaforo('fcr') === 'verde' }"></div>
-                                <div class="progress-indicator" :style="getPosicionIndicador('fcr')">
-                                    <div class="indicator-dot"></div>
-                                </div>
-                            </div>
-                            <div class="progress-ranges">
-                                <span>&lt;50%</span>
-                                <span>50-69%</span>
-                                <span>70%+</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
                     <!-- Cantidad de Respuestas por Área -->
                     <div class="charts-grid">
                         <div class="chart-card full-width">
@@ -1200,7 +1189,7 @@ export default {
                     const porcentajeNo = Math.round((no / total) * 100);
                     
                     polarData = [porcentajeSi, porcentajeNo];
-                    polarColors = porcentajeSi >= porcentajeNo ? ['#10b981', '#ef4444'] : ['#ef4444', '#10b981'];
+                    polarColors = porcentajeSi >= porcentajeNo ? ['#10b981', '#ef4444'] : ['#10b981', '#ef4444'];
                     fullLabels = [
                         `Sí\n${porcentajeSi}%\n${si} respuestas`,
                         `No\n${porcentajeNo}%\n${no} respuestas`
@@ -3669,6 +3658,7 @@ export default {
 }
 
 .estado-indicador-card {
+    width: -webkit-fill-available;
     background: white;
     padding: 2rem;
     border-radius: 16px;
