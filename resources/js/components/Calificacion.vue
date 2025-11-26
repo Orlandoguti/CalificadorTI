@@ -21,23 +21,28 @@
                 <!-- 🔥 NUEVO: Mostrar solo indicadores permitidos según configuración del área -->
                 <div v-if="areaSeleccionada.permite_csat" class="caritas-wrapper">
                     <div class="caritas">
-                        <!-- Caritas de niveles -->
-                        <div v-for="nivel in nivelesCalificacion" :key="nivel.id" class="carita-group">
-                            <div class="carita" @click.stop="iniciarCuestionario(nivel)" :title="nivel.nombre">
-                                <svg :viewBox="getSvgViewBox(nivel.id)">
-                                    <circle cx="60" cy="60" r="58" :fill="getColorFondo(nivel.id)"/>
-                                    <circle cx="45" cy="55" r="10" :fill="getColorOjos(nivel.id)"/>
-                                    <circle cx="75" cy="55" r="10" :fill="getColorOjos(nivel.id)"/>
-                                    <path :d="getBocaSvg(nivel.id)" :stroke="getColorOjos(nivel.id)" stroke-width="5" fill="none" stroke-linecap="round"/>
-                                </svg>
-                            </div>
-                            <div class="carita-label" @click.stop="iniciarCuestionario(nivel)">
-                                {{ nivel.nombre }}
-                            </div>
+                        <div v-for="nivel in nivelesCalificacion" :key="nivel.id" class="carita-group">      
+                        <div class="carita" @click.stop="iniciarCuestionario(nivel)" :title="nivel.nombre">
+
+                            <!-- Emoji normal -->
+                            <span v-if="!nivel.emoji.includes('<svg') && !nivel.emoji.match(/\.(png|jpe?g|gif)$/i)" class="emoji" @contextmenu.prevent
+                            @dragstart.prevent>
+                            {{ nivel.emoji }}
+                            </span>
+                            <!-- SVG -->
+                            <div v-else-if="nivel.emoji.includes('<svg')" class="emoji-svg" @contextmenu.prevent
+                            @dragstart.prevent v-html="nivel.emoji"></div>
+                            <!-- Imagen o GIF -->
+                            <img v-else :src="`/imagen/csat/${nivel.emoji}`" class="emoji-img" @contextmenu.prevent
+                            @dragstart.prevent />
+                        </div>
+                        <div class="carita-label" @click.stop="iniciarCuestionario(nivel)">
+                            {{ nivel.nombre }}
+                        </div>
                         </div>
                     </div>
                 </div>
-
+                
                 <!-- 🔥 NUEVO: Indicadores alternativos si no tiene CSAT -->
                 <div v-else class="indicadores-alt-wrapper">
                     <div v-if="areaSeleccionada.permite_nps" class="indicador-nps-wrapper">
@@ -452,36 +457,7 @@ export default {
             cargandoPreguntaFCR: false, // 🔥 NUEVO: Estado de carga de pregunta FCR
             
             // Niveles de calificación
-           nivelesCalificacion: [
-            { 
-                id: 1, 
-                nombre: 'Muy Insatisfecho', 
-                valor: 1,
-                emoji: '😠',
-                color: '#EF4444'
-            },
-            { 
-                id: 2, 
-                nombre: 'Insatisfecho', 
-                valor: 2,
-                emoji: '😕',
-                color: '#F59E0B'
-            },
-            { 
-                id: 3, 
-                nombre: 'Satisfecho', 
-                valor: 3,
-                emoji: '😊',
-                color: '#10B981'
-            },
-            { 
-                id: 4, 
-                nombre: 'Muy Satisfecho', 
-                valor: 4,
-                emoji: '😍',
-                color: '#3B82F6'
-            }
-        ],
+           nivelesCalificacion: [],
             
             // Datos del cuestionario
             nivelSeleccionado: null,
@@ -519,13 +495,6 @@ export default {
             subpreguntaIndex: 0,
             subpreguntasActivas: {},
             respuestasSubpreguntas: {},
-            emojisIndicador: [
-                { emoji: '😠', label: 'Muy Malo' },
-                { emoji: '😕', label: 'Malo' },
-                { emoji: '😐', label: 'Regular' },
-                { emoji: '😊', label: 'Bueno' },
-                { emoji: '😍', label: 'Excelente' }
-            ],
         
         // Datos para opción única con texto libre - CORREGIDO
         textoLibreOpcion: '',
@@ -726,6 +695,7 @@ respuestaUnica: {
         }
     },
     async mounted() {
+        this.cargarNiveles();
     // Verificar si hay área seleccionada en localStorage
     const areaGuardada = localStorage.getItem('area_seleccionada');
     const sedeGuardada = localStorage.getItem('sede_seleccionada');
@@ -748,6 +718,15 @@ respuestaUnica: {
         this.limpiarTimeoutInactividad();
     },
     methods: {
+
+        async cargarNiveles() {
+            try {
+                const res = await axios.get('/api/niveles-calificacion');
+                this.nivelesCalificacion = res.data;
+            } catch (error) {
+                console.error("Error cargando niveles:", error);
+            }
+        },
         capitalizarPalabras(texto) {
             return texto
             .toLowerCase()
@@ -4350,6 +4329,9 @@ async cargarPreguntaFCR() {
 </script>
 
 <style scoped>
+* {
+    -webkit-tap-highlight-color: transparent;
+}
 /* Estilos base del calificador */
 .calificador-container {
     min-height: 100vh;
@@ -4359,6 +4341,11 @@ async cargarPreguntaFCR() {
     display: flex;
     align-items: center;
     justify-content: center;
+     user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 /* Vista Selección */
@@ -4371,13 +4358,26 @@ async cargarPreguntaFCR() {
 
 .header-info {
     margin-bottom: 1rem;
+    
 }
-
+.header-info * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    cursor: pointer;
+}
 .calificador-titulo {
     font-size: clamp(3rem, 7vw, 3rem);
     margin-bottom: 1.5rem;
     font-weight: 700;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    cursor: pointer;
+    
 }
 
 .ubicacion-info {
@@ -4415,7 +4415,7 @@ async cargarPreguntaFCR() {
     border-radius: 50%;
     background: #fff;
     border: 0px solid #fff;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    /*box-shadow: 0 8px 32px rgba(0,0,0,0.2);*/
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4423,11 +4423,19 @@ async cargarPreguntaFCR() {
     transition: all 0.3s ease;
     margin-bottom: 1.5rem;
     outline: none; /* 🔥 Eliminar outline por defecto */
+    
+}
+.carita * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    cursor: pointer;
 }
 
 .carita:focus {
     outline: none; /* 🔥 Sin outline al hacer focus */
-    box-shadow: 0 8px 32px rgba(0,0,0,0.2); /* Mantener sombra normal */
+    /*box-shadow: 0 8px 32px rgba(0,0,0,0.2); /* Mantener sombra normal */
 }
 
 .carita:active {
@@ -4437,7 +4445,7 @@ async cargarPreguntaFCR() {
 
 .carita:hover {
     transform: scale(1.1) rotate(5deg);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+   /* box-shadow: 0 12px 40px rgba(0,0,0,0.3);*/
 }
 
 .carita svg {
@@ -5101,11 +5109,31 @@ async cargarPreguntaFCR() {
     transform: scale(1.1);
 }
 
-.emoji {
-    font-size: 2rem;
-    transition: all 0.3s ease;
+.emoji {    
+    margin-bottom: 12%;
+    font-size: 13rem; /* se puede ajustar según el tamaño de .carita */
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
+.emoji-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* mantiene proporción */
 
+    -webkit-user-drag: none;  /* Chrome, Safari */
+    -khtml-user-drag: none;
+    -moz-user-drag: none;     /* Firefox */
+    -o-user-drag: none;
+    user-drag: none;
+
+    -webkit-user-select: none; /* no seleccionar */
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
 .emoji-item.active .emoji {
     transform: scale(1.2);
 }
@@ -5120,6 +5148,13 @@ async cargarPreguntaFCR() {
 .emoji-item.active .emoji-label {
     color: #4f46e5;
     font-weight: 600;
+}
+.emoji * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    cursor: pointer;
 }
 
 /* Responsive */

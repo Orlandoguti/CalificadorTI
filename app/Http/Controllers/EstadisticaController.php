@@ -116,8 +116,11 @@ class EstadisticaController extends Controller
             case 'fcr':
                 // FCR: Total personas que respondieron SÍ (valor_principal = 0) / Total encuestas * 100
                 $querySi = Calificacion::query()
-                    ->where('tipo_calificacion', 'fcr')
-                    ->where('valor_principal', 0); // 0 = SÍ, 1 = No
+                ->where('tipo_calificacion', 'fcr')
+                ->where(function ($q) {
+                    $q->where('valor_principal', 0)
+                      ->orWhereNull('valor_principal');
+                });
                     
                 $this->aplicarFiltros($querySi, $fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId, $tipoCalificacion);
                 $totalSi = $querySi->count();
@@ -129,7 +132,7 @@ class EstadisticaController extends Controller
                 // valor_principal 3 = Satisfecho, 4 = Muy satisfecho
                 $querySatisfechos = Calificacion::query()
                     ->where('tipo_calificacion', 'csat')
-                    ->whereIn('nivel_calificacion_id', [3, 4]);
+                    ->whereIn('nivel_calificacion_id', [1, 2]);
                     
                 $this->aplicarFiltros($querySatisfechos, $fechaInicio, $fechaFin, $areaId, $nivelId, $sedeId, $tipoCalificacion);
                 $totalSatisfechos = $querySatisfechos->count();
@@ -481,7 +484,7 @@ class EstadisticaController extends Controller
             case 'csat':
                 $querySatisfechos = Calificacion::query()
                     ->where('tipo_calificacion', 'csat')
-                    ->whereIn('valor_principal', [3, 4])
+                    ->whereIn('valor_principal', [1, 2])
                     ->whereDate('created_at', '=', $fecha);
                 if ($areaId) $querySatisfechos->where('area_id', $areaId);
                 if ($sedeId) $querySatisfechos->where('sede_id', $sedeId);
@@ -539,7 +542,7 @@ class EstadisticaController extends Controller
             case 'csat':
                 $querySatisfechos = Calificacion::query()
                     ->where('tipo_calificacion', 'csat')
-                    ->whereIn('valor_principal', [3, 4])
+                    ->whereIn('valor_principal', [1, 2])
                     ->whereRaw('DATE_FORMAT(created_at, "%Y-%m") = ?', [$mes]);
                 if ($areaId) $querySatisfechos->where('area_id', $areaId);
                 if ($sedeId) $querySatisfechos->where('sede_id', $sedeId);
@@ -717,7 +720,7 @@ class EstadisticaController extends Controller
      */
     private function getCSATDimensionesPorNivel($fechaInicio, $fechaFin, $areaId, $sedeId)
     {
-        $niveles = [1, 2, 3, 4]; // 1: Muy Insatisfecho, 2: Insatisfecho, 3: Satisfecho, 4: Muy Satisfecho
+        $niveles = [4, 3, 2, 1]; // 1: Muy Insatisfecho, 2: Insatisfecho, 3: Satisfecho, 4: Muy Satisfecho
         $resultados = [];
 
         foreach ($niveles as $nivel) {

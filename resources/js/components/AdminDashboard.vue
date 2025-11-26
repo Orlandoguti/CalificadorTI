@@ -556,7 +556,7 @@
 						<div class="chart-card full-width">
 							<div class="chart-header" style="justify-items: center;">
 								<h3>Top 10 - Preguntas más respondidas</h3>
-								<p>CSAT, FCR y NPS combinados</p>
+								<p>CSAT y FCR combinados</p>
 							</div>
 							<div class="chart-container chart-container-full-width">
 								<canvas ref="top10AllDimChart"></canvas>
@@ -1560,18 +1560,26 @@ export default {
         },
 
         formatearFecha(fecha) {
-            if (!fecha) return '';
-            if (fecha.match(/^\d{4}-\d{2}$/)) {
-                const [year, month] = fecha.split('-');
-                const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-                return `${meses[parseInt(month) - 1]} ${year}`;
-            }
-            if (fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const date = new Date(fecha);
-                const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-                return `${date.getDate()} ${meses[date.getMonth()]}`;
-            }
-            return fecha;
+              if (!fecha) return '';
+
+    // Caso YYYY-MM
+    if (fecha.match(/^\d{4}-\d{2}$/)) {
+        const [year, month] = fecha.split('-');
+        const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        return `${meses[parseInt(month) - 1]} ${year}`;
+    }
+
+    // Caso YYYY-MM-DD sin restar días
+    if (fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [y, m, d] = fecha.split('-');
+        const date = new Date(y, m - 1, d); // ← FIX aquí
+
+        const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        return `${date.getDate()} ${meses[date.getMonth()]}`;
+    }
+
+    return fecha;
+
         },
 
         destruirGraficos() {
