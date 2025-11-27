@@ -268,106 +268,108 @@
     </div>
 </template>
 
-<!-- VISTA SUBPREGUNTAS -->
-<template v-else>
-    <div class="subpregunta-actual">
-        <div v-if="subpreguntaActual" class="subpregunta-header">
-            <h3 class="subpregunta-texto">{{ subpreguntaActual.pregunta_texto }}</h3>
-            <span class="tipo-subpregunta">{{ getTipoTexto(subpreguntaActual.tipo) }}</span>
-        </div>
-        <div v-else class="cargando-subpregunta">
-            <i class="fas fa-spinner fa-spin"></i>
-            <p>Cargando subpreguntas...</p>
-        </div>
+        <!-- VISTA SUBPREGUNTAS -->
+        <template v-else>
+            <div class="subpregunta-actual">
+                <div v-if="subpreguntaActual" class="subpregunta-header">
+                    <h3 class="subpregunta-texto">{{ subpreguntaActual.pregunta_texto }}</h3>
+                    <span class="tipo-subpregunta">{{ getTipoTexto(subpreguntaActual.tipo) }}</span>
+                </div>
+                <div v-else class="cargando-subpregunta">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Cargando subpreguntas...</p>
+                </div>
 
-        <!-- SUBPREGUNTA: Opción Múltiple -->
-        <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'opcion_multiple'" class="opciones-container">
-            <div v-for="(opcion, index) in subpreguntaActual.opciones" 
-                 :key="index"
-                 class="opcion-item"
-                 :class="{ seleccionada: (respuestasSubpreguntas[subpreguntaActual.id]?.opcionesSeleccionadas || []).includes(opcion) }"
-                 @click="toggleOpcionMultipleSubpregunta(subpreguntaActual, opcion)">
-                <div class="opcion-checkbox">
-                    <div class="checkbox-square" 
-                         :class="{ activo: (respuestasSubpreguntas[subpreguntaActual.id]?.opcionesSeleccionadas || []).includes(opcion) }">
-                        <i v-if="(respuestasSubpreguntas[subpreguntaActual.id]?.opcionesSeleccionadas || []).includes(opcion)" 
-                           class="fas fa-check"></i>
+                <!-- SUBPREGUNTA: Opción Múltiple -->
+                <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'opcion_multiple'" class="opciones-container">
+                    <div v-for="(opcion, index) in subpreguntaActual.opciones" 
+                        :key="index"
+                        class="opcion-item"
+                        :class="{ seleccionada: (respuestasSubpreguntas[subpreguntaActual.id]?.opcionesSeleccionadas || []).includes(opcion) }"
+                        @click="toggleOpcionMultipleSubpregunta(subpreguntaActual, opcion)">
+                        <div class="opcion-checkbox">
+                            <div class="checkbox-square" 
+                                :class="{ activo: (respuestasSubpreguntas[subpreguntaActual.id]?.opcionesSeleccionadas || []).includes(opcion) }">
+                                <i v-if="(respuestasSubpreguntas[subpreguntaActual.id]?.opcionesSeleccionadas || []).includes(opcion)" 
+                                class="fas fa-check"></i>
+                            </div>
+                        </div>
+                        <span class="opcion-texto">{{ opcion }}</span>
                     </div>
                 </div>
-                <span class="opcion-texto">{{ opcion }}</span>
-            </div>
-        </div>
 
-        <!-- SUBPREGUNTA: Opción Única -->
-        <div v-if="subpreguntaActual && (subpreguntaActual.tipo === 'opcion_unica' || subpreguntaActual.tipo === 'opcion_unica_texto_libre')" class="opciones-container">
-            <div v-for="(opcion, index) in subpreguntaActual.opciones" 
-                 :key="index"
-                 class="opcion-item"
-                 :class="{ seleccionada: respuestasSubpreguntas[subpreguntaActual.id]?.opcionSeleccionada === opcion }"
-                 @click="seleccionarOpcionSubpregunta(subpreguntaActual, opcion)">
-                <div class="opcion-radio">
-                    <div class="radio-circle" 
-                         :class="{ activo: respuestasSubpreguntas[subpreguntaActual.id]?.opcionSeleccionada === opcion }">
+                <!-- SUBPREGUNTA: Opción Única -->
+                <div v-if="subpreguntaActual && (subpreguntaActual.tipo === 'opcion_unica' || subpreguntaActual.tipo === 'opcion_unica_texto_libre')" class="opciones-container">
+                    <div v-for="(opcion, index) in subpreguntaActual.opciones" 
+                        :key="index"
+                        class="opcion-item"
+                        :class="{ seleccionada: respuestasSubpreguntas[subpreguntaActual.id]?.opcionSeleccionada === opcion }"
+                        @click="seleccionarOpcionSubpregunta(subpreguntaActual, opcion)">
+                        <div class="opcion-radio">
+                            <div class="radio-circle" 
+                                :class="{ activo: respuestasSubpreguntas[subpreguntaActual.id]?.opcionSeleccionada === opcion }">
+                            </div>
+                        </div>
+                        <span class="opcion-texto">{{ opcion }}</span>
+                    </div>
+                    
+                    <!-- Texto libre para opción única con texto libre -->
+                    <div v-if="subpreguntaActual.tipo === 'opcion_unica_texto_libre' && 
+                            respuestasSubpreguntas[subpreguntaActual.id]?.opcionSeleccionada && 
+                            (respuestasSubpreguntas[subpreguntaActual.id].opcionSeleccionada.toLowerCase().includes('otro') || respuestasSubpreguntas[subpreguntaActual.id].opcionSeleccionada.toLowerCase().includes('especifique'))" 
+                        class="texto-libre-subpregunta mt-3">
+                        <textarea 
+                            v-model="respuestasSubpreguntas[subpreguntaActual.id].texto"
+                            placeholder="Especifique por favor..."
+                            rows="3"
+                            class="texto-libre-input"
+                            @input="guardarTextoLibreOpcionRango()"
+                                @focus="manejarFocoTexto"
+                        ></textarea>
                     </div>
                 </div>
-                <span class="opcion-texto">{{ opcion }}</span>
-            </div>
-            
-            <!-- Texto libre para opción única con texto libre -->
-            <div v-if="subpreguntaActual.tipo === 'opcion_unica_texto_libre' && 
-                       respuestasSubpreguntas[subpreguntaActual.id]?.opcionSeleccionada && 
-                       (respuestasSubpreguntas[subpreguntaActual.id].opcionSeleccionada.toLowerCase().includes('otro') || respuestasSubpreguntas[subpreguntaActual.id].opcionSeleccionada.toLowerCase().includes('especifique'))" 
-                 class="texto-libre-subpregunta mt-3">
-                <textarea 
-                    v-model="respuestasSubpreguntas[subpreguntaActual.id].texto"
-                    placeholder="Especifique por favor..."
-                    rows="3"
-                    class="texto-libre-input"
-                ></textarea>
-            </div>
-        </div>
 
-        <!-- SUBPREGUNTA: Texto Libre -->
-        <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'texto_libre'" class="texto-libre-container">
-            <textarea 
-                :value="respuestasSubpreguntas[subpreguntaActual.id]?.texto || ''"
-                @input="actualizarTextoSubpregunta(subpreguntaActual, $event)"
-                placeholder="Escribe tu respuesta..."
-                rows="4"
-                class="texto-libre-input"
-            ></textarea>
-            <div class="caracteres-info">
-                {{ (respuestasSubpreguntas[subpreguntaActual.id]?.texto || '').length }}/500 caracteres
-            </div>
-        </div>
+                <!-- SUBPREGUNTA: Texto Libre -->
+                <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'texto_libre'" class="texto-libre-container">
+                    <textarea 
+                        :value="respuestasSubpreguntas[subpreguntaActual.id]?.texto || ''"
+                        @input="actualizarTextoSubpregunta(subpreguntaActual, $event)"
+                        placeholder="Escribe tu respuesta..."
+                        rows="4"
+                        class="texto-libre-input"
+                    ></textarea>
+                    <div class="caracteres-info">
+                        {{ (respuestasSubpreguntas[subpreguntaActual.id]?.texto || '').length }}/500 caracteres
+                    </div>
+                </div>
 
-        <!-- SUBPREGUNTA: Indicador 0-10 -->
-        <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'indicador_0_10'" class="indicador-container">
-            <div class="indicador-header">
-                <div class="indicador-labels">
-                    <span class="indicador-min">0</span>
-                    <span class="indicador-value">{{ respuestasSubpreguntas[subpreguntaActual.id]?.valor || 5 }}</span>
-                    <span class="indicador-max">10</span>
+                <!-- SUBPREGUNTA: Indicador 0-10 -->
+                <div v-if="subpreguntaActual && subpreguntaActual.tipo === 'indicador_0_10'" class="indicador-container">
+                    <div class="indicador-header">
+                        <div class="indicador-labels">
+                            <span class="indicador-min">0</span>
+                            <span class="indicador-value">{{ respuestasSubpreguntas[subpreguntaActual.id]?.valor || 5 }}</span>
+                            <span class="indicador-max">10</span>
+                        </div>
+                    </div>
+                    
+                    <div class="indicador-track" @mousedown="iniciarArrastreSubpregunta(subpreguntaActual, $event)">
+                        <div class="indicador-progress" 
+                            :style="{ width: ((respuestasSubpreguntas[subpreguntaActual.id]?.valor || 5) / 10 * 100) + '%' }">
+                        </div>
+                        <div class="indicador-thumb" 
+                            :style="{ left: ((respuestasSubpreguntas[subpreguntaActual.id]?.valor || 5) / 10 * 100) + '%' }">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Validación para subpreguntas -->
+                <div v-if="errorValidacion" class="error-validacion">
+                    <i class="fas fa-exclamation-circle"></i>
+                    {{ errorValidacion }}
                 </div>
             </div>
-            
-            <div class="indicador-track" @mousedown="iniciarArrastreSubpregunta(subpreguntaActual, $event)">
-                <div class="indicador-progress" 
-                     :style="{ width: ((respuestasSubpreguntas[subpreguntaActual.id]?.valor || 5) / 10 * 100) + '%' }">
-                </div>
-                <div class="indicador-thumb" 
-                     :style="{ left: ((respuestasSubpreguntas[subpreguntaActual.id]?.valor || 5) / 10 * 100) + '%' }">
-                </div>
-            </div>
-        </div>
-
-        <!-- Validación para subpreguntas -->
-        <div v-if="errorValidacion" class="error-validacion">
-            <i class="fas fa-exclamation-circle"></i>
-            {{ errorValidacion }}
-        </div>
-    </div>
-</template>
+        </template>
 
                         <div class="navegacion-modal">
                             <!-- 🔥 CORRECCIÓN: Botón retroceder mejorado -->
@@ -477,7 +479,7 @@ export default {
             
             // Timeout para cerrar modal si no hay interacción
             timeoutInactividad: null,
-            tiempoInactividad: 15000, // 15000 segundos sin interacción
+            tiempoInactividad: 200000, // 15000 segundos sin interacción
 
             // Datos para indicador 0-10
             respuestaIndicadorValor: 5, // Valor por defecto
@@ -2798,6 +2800,8 @@ detenerArrastre() {
     },
 
     seleccionarOpcionUnicaConTexto(opcionId, opcionTexto) {
+        
+        
         console.log('🔘 Seleccionando opción con texto libre:', opcionId, '-', opcionTexto);
         
         this.respuestaUnica = opcionId;
@@ -2851,6 +2855,14 @@ detenerArrastre() {
 manejarFocoTexto(event) {
     // Prevenir que el clic en el textarea deseleccione la opción
     event.stopPropagation();
+    const modal = this.$el.querySelector('.modal-container');
+    if (!modal) return;
+
+    // Scroll al final
+    modal.scrollTop = modal.scrollHeight;
+    setTimeout(() => {
+      modal.scrollTop = modal.scrollHeight;
+    }, 500);
     console.log('🎯 Textarea enfocado');
 },
 
@@ -3080,6 +3092,23 @@ seleccionarOpcionSubpregunta(subpregunta, opcion) {
     // Si es opción única con texto libre y NO seleccionó "Otro especificar", limpiar texto
     if (subpregunta.tipo === 'opcion_unica_texto_libre' && opcion !== 'Otro especificar') {
         this.respuestasSubpreguntas[subpregunta.id].texto = '';
+    }
+    
+    // 🔥 NUEVO: Auto-focus cuando se selecciona "Otro" en subpreguntas (igual que en preguntas normales)
+    if (subpregunta.tipo === 'opcion_unica_texto_libre' && 
+        opcion && 
+        (opcion.toLowerCase().includes('otro') || opcion.toLowerCase().includes('especifique'))) {
+        // 1️⃣ Esperar que Vue renderice el textarea
+        this.$nextTick(() => {
+            const textarea = this.$el.querySelector('.texto-libre-subpregunta .texto-libre-input');
+            const modal = this.$el.querySelector('.modal-container');
+            
+            if (!textarea || !modal) return;
+            // 2️⃣ Focus forzado mediante setTimeout para que Full Kiosk abra teclado
+            setTimeout(() => {
+                textarea.focus({ preventScroll: true });  // focus real
+            }, 100);
+        });
     }
     
     console.log('📝 Respuesta subpregunta actualizada:', this.respuestasSubpreguntas[subpregunta.id]);
@@ -3396,6 +3425,21 @@ toggleOpcionMultipleRango(opcion, index) {
  * 🔥 NUEVO: Seleccionar opción única con texto para rangos
  */
 seleccionarOpcionUnicaConTextoRango(opcion, index) {
+     // 1️⃣ Marcar la opción como seleccionada
+     this.respuestaUnica = opcion.id || opcion;
+
+        // 2️⃣ Esperar que Vue renderice el textarea
+        this.$nextTick(() => {
+        const textarea = this.$el.querySelector('.texto-libre-input-opcion');
+        const modal = this.$el.querySelector('.modal-container');
+
+        if (!textarea || !modal) return;
+        // 4️⃣ Focus forzado mediante setTimeout para que Full Kiosk abra teclado
+        setTimeout(() => {
+            textarea.focus({ preventScroll: true });  // focus real
+        }, 100);        
+        });
+
     console.log('🔘 Seleccionando opción con texto para rango:', opcion, index);
     
     // Determinar identificador
