@@ -551,7 +551,7 @@
                 </div>               
 
 					<!-- Top 10 FCR - Dimensiones más respondidas -->
-					<!-- Top 10 combinado (CSAT, FCR, NPS) - Horizontal + Tabla -->
+					<!-- Top 10 combinado (CSAT, FCR, NPS) - Horizontal + Tabla 
 					<div class="charts-grid" v-if="activeTab === 'dashboard'" style="margin-top: 1rem;">
 						<div class="chart-card full-width">
 							<div class="chart-header" style="justify-items: center;">
@@ -587,7 +587,7 @@
 							</div>
 						</div>
 					</div>
-
+-->
                 <!-- Preguntas Management -->
                 <div v-if="activeTab === 'preguntas'" class="tab-content">
                     <div class="module-header">
@@ -1206,7 +1206,7 @@ export default {
 
             try {
                 this[chartName] = new Chart(ctx, {
-                    type: 'polarArea',
+                    type: 'doughnut',
                     data: {
                         labels: labels.map(l => l.split('\n')[0]),
                         datasets: [{
@@ -1257,7 +1257,7 @@ export default {
                                         if (fullLabels[index]) {
                                             return fullLabels[index].split('\n');
                                         }
-                                        return context.label + ': ' + context.parsed.r.toFixed(1) + '%';
+                                        return context.label + ': ' + context.parsed + '%';
                                     }
                                 }
                             }
@@ -1266,30 +1266,7 @@ export default {
                             animateRotate: true,
                             animateScale: true
                         },
-                        scales: {
-                            r: {
-                                beginAtZero: true,
-                                max: 100,
-                                display: true,
-                                ticks: {
-                                    stepSize: 10,
-                                    font: {
-                                        size: 10
-                                    },
-                                    color: '#6b7280'
-                                },
-                                grid: {
-                                    color: 'rgba(0, 0, 0, 0.1)'
-                                },
-                                pointLabels: {
-                                    display: true,
-                                    font: {
-                                        size: 11
-                                    },
-                                    color: '#1f2937'
-                                }
-                            }
-                        }
+                        cutout: '40%'
                     }
                 });
             } catch (error) {
