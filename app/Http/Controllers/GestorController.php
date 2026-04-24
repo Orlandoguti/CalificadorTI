@@ -11,6 +11,24 @@ use Carbon\Carbon;
 
 class GestorController extends Controller
 {
+    /**
+     * Obtener las áreas permitidas para el gestor
+     * Si tiene áreas asignadas específicamente, retorna solo esas
+     * Si no tiene áreas asignadas, retorna todas las áreas de su sede
+     */
+    private function getAreasPermitidas($user)
+    {
+        $areasAsignadas = $user->areas()->pluck('areas.id')->toArray();
+        
+        // Si tiene áreas asignadas específicamente, usar solo esas
+        if (!empty($areasAsignadas)) {
+            return $areasAsignadas;
+        }
+        
+        // Si no tiene áreas asignadas, retornar null para indicar "todas las áreas de la sede"
+        return null;
+    }
+
     public function stats(Request $request)
     {
         $user = Auth::user();
@@ -24,12 +42,24 @@ class GestorController extends Controller
             ]);
         }
 
+        // Obtener áreas permitidas para el gestor
+        $areasPermitidas = $this->getAreasPermitidas($user);
+
         // Construir query base con filtros
         $query = Calificacion::where('sede_id', $sedeId);
+        
+        // Si el gestor tiene áreas asignadas específicamente, filtrar por esas áreas
+        if ($areasPermitidas !== null) {
+            $query->whereIn('area_id', $areasPermitidas);
+        }
 
-        // Filtro por área
+        // Filtro por área (si se proporciona y está en las áreas permitidas)
         if ($request->has('area_id') && $request->area_id) {
-            $query->where('area_id', $request->area_id);
+            $areaId = $request->area_id;
+            // Si tiene áreas asignadas, verificar que el área solicitada esté permitida
+            if ($areasPermitidas === null || in_array($areaId, $areasPermitidas)) {
+                $query->where('area_id', $areaId);
+            }
         }
 
         // Filtro por rango de fechas
@@ -84,11 +114,21 @@ class GestorController extends Controller
                 $fcrQuery = Calificacion::where('sede_id', $sedeId)
                     ->where('tipo_calificacion', 'fcr');
                 
+                // Aplicar filtro de áreas permitidas
+                if ($areasPermitidas !== null) {
+                    $csatQuery->whereIn('area_id', $areasPermitidas);
+                    $npsQuery->whereIn('area_id', $areasPermitidas);
+                    $fcrQuery->whereIn('area_id', $areasPermitidas);
+                }
+                
                 // Aplicar filtros adicionales a cada query
                 if ($request->has('area_id') && $request->area_id) {
-                    $csatQuery->where('area_id', $request->area_id);
-                    $npsQuery->where('area_id', $request->area_id);
-                    $fcrQuery->where('area_id', $request->area_id);
+                    $areaId = $request->area_id;
+                    if ($areasPermitidas === null || in_array($areaId, $areasPermitidas)) {
+                        $csatQuery->where('area_id', $areaId);
+                        $npsQuery->where('area_id', $areaId);
+                        $fcrQuery->where('area_id', $areaId);
+                    }
                 }
                 if ($request->has('fecha_inicio') && $request->fecha_inicio) {
                     $csatQuery->whereDate('created_at', '>=', $request->fecha_inicio);
@@ -165,12 +205,23 @@ class GestorController extends Controller
             return response()->json([]);
         }
 
+        // Obtener áreas permitidas para el gestor
+        $areasPermitidas = $this->getAreasPermitidas($user);
+
         // Construir query base con filtros
         $query = Calificacion::where('sede_id', $sedeId);
+        
+        // Si el gestor tiene áreas asignadas específicamente, filtrar por esas áreas
+        if ($areasPermitidas !== null) {
+            $query->whereIn('area_id', $areasPermitidas);
+        }
 
-        // Filtro por área
+        // Filtro por área (si se proporciona y está en las áreas permitidas)
         if ($request->has('area_id') && $request->area_id) {
-            $query->where('area_id', $request->area_id);
+            $areaId = $request->area_id;
+            if ($areasPermitidas === null || in_array($areaId, $areasPermitidas)) {
+                $query->where('area_id', $areaId);
+            }
         }
 
         // Filtro por rango de fechas

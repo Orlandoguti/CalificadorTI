@@ -40,6 +40,13 @@ class User extends Authenticatable
         return $this->hasMany(Calificacion::class);
     }
 
+    // Relación many-to-many con áreas (para gestores con áreas específicas asignadas)
+    public function areas()
+    {
+        return $this->belongsToMany(Area::class, 'area_user')
+                    ->withTimestamps();
+    }
+
     // Métodos para verificar roles
     public function isAdmin()
     {

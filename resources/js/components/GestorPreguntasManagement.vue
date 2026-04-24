@@ -5,11 +5,7 @@
             <p>Administra preguntas principales y sus subpreguntas</p>
         </div>
 
-        <div class="actions-bar">
-            <button @click="mostrarModalCrearPregunta" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Nueva Pregunta Principal
-            </button>
-        </div>
+        <!-- Solo visualización - Sin acciones -->
 
         <!-- Lista de Preguntas Principales -->
         <div class="preguntas-container">
@@ -19,23 +15,11 @@
                         <h3>{{ pregunta.pregunta }}</h3>
                         <div class="pregunta-meta">
                             <span class="tipo-badge">{{ getTipoTexto(pregunta.tipo) }}</span>
-                            <span class="area-badge">{{ pregunta.area.nombre }}</span>
+                            <span class="area-badge">{{ pregunta.areas_participantes && pregunta.areas_participantes.length > 0 ? pregunta.areas_participantes[0].nombre : (pregunta.area ? pregunta.area.nombre : 'N/A') }}</span>
                             <span class="nivel-badge">{{ pregunta.nivel_calificacion.nombre }}</span>
                         </div>
                     </div>
-                    <div class="pregunta-actions">
-                        <button @click="editarPregunta(pregunta)" class="btn-icon" title="Editar pregunta">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button @click="gestionarSubpreguntas(pregunta)" class="btn btn-outline">
-                            <i class="fas fa-layer-group"></i> Subpreguntas
-                        </button>
-                        <button @click="toggleEstadoPregunta(pregunta)" 
-                                :class="['btn-icon', pregunta.is_active ? 'danger' : 'success']"
-                                :title="pregunta.is_active ? 'Desactivar' : 'Activar'">
-                            <i :class="pregunta.is_active ? 'fas fa-ban' : 'fas fa-check'"></i>
-                        </button>
-                    </div>
+                    <!-- Solo visualización - Sin acciones -->
                 </div>
                 
                 <!-- Opciones de la pregunta -->
@@ -58,351 +42,7 @@
             </div>
         </div>
 
-        <!-- Modal para Pregunta Principal -->
-        <div v-if="mostrarModalPregunta" class="modal-overlay" @click="cerrarModalPregunta">
-            <div class="modal-container" @click.stop>
-                <div class="modal-header">
-                    <h3>{{ esEdicionPregunta ? 'Editar Pregunta' : 'Crear Pregunta Principal' }}</h3>
-                    <button @click="cerrarModalPregunta" class="btn-close">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                
-                <form @submit.prevent="guardarPregunta" class="modal-form">
-                    <div class="form-group">
-                        <label>Pregunta *</label>
-                        <textarea 
-                            v-model="preguntaForm.pregunta"
-                            required
-                            placeholder="Escribe la pregunta principal..."
-                            rows="3"
-                            class="form-textarea"
-                        ></textarea>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Área *</label>
-                            <select v-model="preguntaForm.area_id" required class="form-select">
-                                <option value="">Seleccionar área</option>
-                                <option v-for="area in areas" :key="area.id" :value="area.id">
-                                    {{ area.nombre }}
-                                </option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Tipo de Pregunta *</label>
-                            <select v-model="preguntaForm.tipo" required class="form-select" @change="cambiarTipoPregunta">
-                                <option value="opcion_unica">Opción Única</option>
-                                <option value="opcion_multiple">Opción Múltiple</option>
-                                <option value="indicador_0_10">Indicador 0-10</option>
-                                <option value="opcion_unica_texto_libre">Opción Única + Texto Libre</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Nivel de Calificación *</label>
-                            <select v-model="preguntaForm.niveles_calificacion_id" required class="form-select">
-                                <option value="">Seleccionar nivel</option>
-                                <option v-for="nivel in nivelesCalificacion" :key="nivel.id" :value="nivel.id">
-                                    {{ nivel.nombre }}
-                                </option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Sede</label>
-                            <input 
-                                :value="sedeNombre" 
-                                type="text" 
-                                disabled
-                                class="form-input disabled"
-                            >
-                            <input 
-                                v-model="preguntaForm.sede_id" 
-                                type="hidden"
-                            >
-                        </div>
-                    </div>
-
-                    <!-- Opciones de la pregunta principal -->
-                    <div v-if="mostrarOpcionesPregunta" class="form-group">
-                        <label>Opciones de Respuesta *</label>
-                        <div class="opciones-container">
-                            <div v-for="(opcion, index) in preguntaForm.opciones" :key="index" class="opcion-input-item">
-                                <input 
-                                    v-model="opcion.texto"
-                                    type="text"
-                                    :placeholder="`Opción ${index + 1}`"
-                                    required
-                                    class="form-input opcion-input"
-                                >
-                                <button 
-                                    type="button" 
-                                    @click="eliminarOpcionPregunta(index)"
-                                    class="btn-icon danger"
-                                    :disabled="preguntaForm.opciones.length <= 2"
-                                    title="Eliminar opción"
-                                >
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            <button type="button" @click="agregarOpcionPregunta" class="btn btn-outline">
-                                <i class="fas fa-plus"></i> Agregar Opción
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 🔥 NUEVA SECCIÓN: Configuración de Rangos para Indicador 0-10 -->
-<div v-if="mostrandoConfiguracionRangos" class="configuracion-rangos">
-    <div class="seccion-titulo">
-        <h4>🔄 Configurar Preguntas por Rango</h4>
-        <p>Define preguntas específicas según la puntuación del usuario</p>
-    </div>
-
-    <div v-for="(rango, rangoKey) in configuracionRangos" :key="rangoKey" class="rango-item">
-        <div class="rango-header">
-            <div class="rango-info">
-                <h5>{{ getTextoRango(rangoKey) }}</h5>
-                <span class="rango-valores">{{ rangoKey }}</span>
-            </div>
-            <div class="rango-toggle">
-                <label class="toggle-label">
-                    <input 
-                        type="checkbox" 
-                        v-model="rango.activo"
-                        class="toggle-input"
-                    >
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">{{ rango.activo ? 'Activado' : 'Desactivado' }}</span>
-                </label>
-            </div>
-        </div>
-
-        <div v-if="rango.activo" class="rango-contenido">
-            <div class="form-group">
-                <label>Pregunta para este rango *</label>
-                <textarea 
-                    v-model="rango.pregunta_texto"
-                    :placeholder="`Ej: ${getTextoEjemploRango(rangoKey)}`"
-                    rows="2"
-                    class="form-textarea"
-                    required
-                ></textarea>
-            </div>
-
-            <div class="form-group">
-                <label>Tipo de Pregunta *</label>
-                <select v-model="rango.tipo" required class="form-select" @change="cambiarTipoRango(rangoKey)">
-                    <option value="opcion_unica">Opción Única</option>
-                    <option value="opcion_multiple">Opción Múltiple</option>
-                    <option value="texto_libre">Texto Libre</option>
-                    <option value="opcion_unica_texto_libre">Opción Única + Texto</option>
-                </select>
-            </div>
-
-            <!-- Opciones para el rango -->
-            <div v-if="['opcion_unica', 'opcion_multiple', 'opcion_unica_texto_libre'].includes(rango.tipo)" 
-                 class="form-group">
-                <label>Opciones de Respuesta *</label>
-                <div class="opciones-container">
-                    <div v-for="(opcion, index) in rango.opciones" :key="index" class="opcion-input-item">
-                        <input 
-                            v-model="opcion.texto"
-                            type="text"
-                            :placeholder="`Opción ${index + 1}`"
-                            required
-                            class="form-input opcion-input"
-                        >
-                        <button 
-                            type="button" 
-                            @click="eliminarOpcionRango(rangoKey, index)"
-                            class="btn-icon danger"
-                            :disabled="rango.opciones.length <= 2"
-                            title="Eliminar opción"
-                        >
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <button type="button" @click="agregarOpcionRango(rangoKey)" class="btn btn-outline">
-                        <i class="fas fa-plus"></i> Agregar Opción
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="rangos-info">
-        <i class="fas fa-info-circle"></i>
-        <span v-if="totalRangosActivos > 0">
-            {{ totalRangosActivos }} de 3 rangos configurados
-        </span>
-        <span v-else>
-            Ningún rango configurado - El indicador funcionará sin preguntas adicionales
-        </span>
-    </div>
-</div>
-
-                    <div class="form-actions">
-                        <button type="button" @click="cerrarModalPregunta" class="btn btn-secondary">
-                            Cancelar
-                        </button>
-                        <button type="submit" :disabled="guardandoPregunta" class="btn btn-primary">
-                            <span v-if="guardandoPregunta">
-                                <i class="fas fa-spinner fa-spin"></i> Guardando...
-                            </span>
-                            <span v-else>
-                                {{ esEdicionPregunta ? 'Actualizar' : 'Crear' }} Pregunta
-                            </span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Modal para Gestionar Subpreguntas -->
-        <div v-if="mostrarModalSubpreguntas" class="modal-overlay" @click="cerrarModalSubpreguntas">
-            <div class="modal-container large-modal" @click.stop>
-                <div class="modal-header">
-                    <h3>Gestionar Subpreguntas</h3>
-                    <p class="modal-subtitle">Pregunta: {{ preguntaSeleccionada?.pregunta }}</p>
-                    <button @click="cerrarModalSubpreguntas" class="btn-close">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <div class="subpreguntas-content">
-                    <div class="info-box">
-                        <i class="fas fa-info-circle"></i>
-                        <div>
-                            <strong>¿Cómo funcionan las subpreguntas?</strong>
-                            <p>Cuando el usuario seleccione una opción que tenga subpreguntas, se le mostrarán automáticamente después.</p>
-                        </div>
-                    </div>
-
-                    <!-- Lista de opciones con sus subpreguntas -->
-                    <div v-for="opcion in preguntaSeleccionada?.opciones || []" :key="opcion.id" class="opcion-subpreguntas-section">
-                        <div class="opcion-header">
-                            <h4>
-                                <i class="fas fa-chevron-right"></i>
-                                {{ opcion.opcion }}
-                            </h4>
-                            <button @click="agregarSubpregunta(opcion)" class="btn btn-primary btn-sm">
-                                <i class="fas fa-plus"></i> Agregar Subpregunta
-                            </button>
-                        </div>
-                        
-                        <!-- Lista de subpreguntas de esta opción -->
-                        <!-- Lista de subpreguntas de esta opción -->
-                        <div v-if="opcion.subpreguntas && opcion.subpreguntas.length" class="subpreguntas-list">
-                            <div v-for="subpregunta in opcion.subpreguntas" :key="subpregunta.id" class="subpregunta-item">
-                                <div class="subpregunta-content">
-                                    <div class="subpregunta-texto">
-                                        <strong>{{ subpregunta.pregunta_texto }}</strong>
-                                        <span class="tipo-badge small">{{ getTipoTexto(subpregunta.tipo) }}</span>
-                                    </div>
-                                    <div v-if="subpregunta.opciones && subpregunta.opciones.length" class="subpregunta-opciones">
-                                        <small>Opciones: {{ Array.isArray(subpregunta.opciones) ? subpregunta.opciones.join(', ') : subpregunta.opciones }}</small>
-                                    </div>
-                                </div>
-                                <div class="subpregunta-actions">
-                                    <button @click="editarSubpregunta(subpregunta, opcion)" class="btn-icon" title="Editar">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button @click="eliminarSubpregunta(subpregunta)" class="btn-icon danger" title="Eliminar">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="no-subpreguntas">
-                            <p><i class="fas fa-info-circle"></i> Esta opción no tiene subpreguntas configuradas</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Modal para Agregar/Editar Subpregunta -->
-        <div v-if="mostrarModalSubpregunta" class="modal-overlay" @click="cerrarModalSubpregunta">
-            <div class="modal-container" @click.stop>
-                <div class="modal-header">
-                    <h3>{{ subpreguntaEditando ? 'Editar' : 'Agregar' }} Subpregunta</h3>
-                    <p class="modal-subtitle">Para opción: {{ opcionSeleccionada?.opcion }}</p>
-                    <button @click="cerrarModalSubpregunta" class="btn-close">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <form @submit.prevent="guardarSubpregunta" class="modal-form">
-                    <div class="form-group">
-                        <label>Subpregunta *</label>
-                        <textarea 
-                            v-model="subpreguntaForm.pregunta_texto"
-                            required
-                            placeholder="¿Qué pregunta quieres hacer cuando el usuario seleccione esta opción?"
-                            rows="3"
-                            class="form-textarea"
-                        ></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Tipo de Subpregunta *</label>
-                        <select v-model="subpreguntaForm.tipo" required class="form-select" @change="cambiarTipoSubpregunta">
-                            <option value="opcion_unica">Opción Única</option>
-                            <option value="opcion_multiple">Opción Múltiple</option>
-                            <option value="texto_libre">Texto Libre</option>
-                            <option value="indicador_0_10">Indicador 0-10</option>
-                        </select>
-                    </div>
-
-                    <!-- Opciones para subpreguntas con opciones -->
-                    <div v-if="['opcion_unica', 'opcion_multiple'].includes(subpreguntaForm.tipo)" class="form-group">
-                        <label>Opciones *</label>
-                        <div class="opciones-container">
-                            <div v-for="(opcion, index) in subpreguntaForm.opciones" :key="index" class="opcion-input-item">
-                                <input 
-                                    v-model="opcion.texto"
-                                    type="text"
-                                    :placeholder="`Opción ${index + 1}`"
-                                    required
-                                    class="form-input opcion-input"
-                                >
-                                <button 
-                                    type="button" 
-                                    @click="eliminarOpcionSubpregunta(index)"
-                                    class="btn-icon danger"
-                                    :disabled="subpreguntaForm.opciones.length <= 2"
-                                    title="Eliminar opción"
-                                >
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            <button type="button" @click="agregarOpcionSubpregunta" class="btn btn-outline">
-                                <i class="fas fa-plus"></i> Agregar Opción
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="button" @click="cerrarModalSubpregunta" class="btn btn-secondary">
-                            Cancelar
-                        </button>
-                        <button type="submit" :disabled="guardandoSubpregunta" class="btn btn-primary">
-                            <span v-if="guardandoSubpregunta">
-                                <i class="fas fa-spinner fa-spin"></i> Guardando...
-                            </span>
-                            <span v-else>
-                                {{ subpreguntaEditando ? 'Actualizar' : 'Crear' }} Subpregunta
-                            </span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+        <!-- Modales eliminados - Solo visualización para gestor -->
     </div>
 </template>
 
@@ -502,9 +142,14 @@ export default {
     },
     async mounted() {
         await this.cargarDatosUsuario();
-        await this.cargarAreas();
-        await this.cargarNivelesCalificacion();
-        await this.cargarPreguntas();
+        // Esperar a que se cargue sede_id antes de cargar datos dependientes
+        if (this.preguntaForm.sede_id) {
+            await this.cargarAreas();
+            await this.cargarNivelesCalificacion();
+            await this.cargarPreguntas();
+        } else {
+            console.warn('⚠️ No hay sede_id asignada al gestor');
+        }
     },
     methods: {
         async cargarDatosUsuario() {
@@ -553,20 +198,27 @@ export default {
 
         async cargarPreguntas() {
             try {
-                const response = await fetch('/api/preguntas');
+                if (!this.preguntaForm.sede_id) {
+                    console.warn('⚠️ No hay sede_id, esperando...');
+                    return;
+                }
+                
+                let url = `/api/preguntas?sede_id=${this.preguntaForm.sede_id}`;
+                const response = await fetch(url);
+                
                 if (response.ok) {
-                    const todasLasPreguntas = await response.json();
-                    this.preguntas = todasLasPreguntas.filter(pregunta => 
-                        pregunta.sede_id === this.preguntaForm.sede_id
-                    );
+                    this.preguntas = await response.json();
+                    console.log('✅ Preguntas cargadas:', this.preguntas.length, 'para sede:', this.preguntaForm.sede_id);
                     
                     // Cargar subpreguntas para cada pregunta
                     for (let pregunta of this.preguntas) {
                         await this.cargarSubpreguntasParaPregunta(pregunta);
                     }
+                } else {
+                    console.error('❌ Error cargando preguntas:', response.status);
                 }
             } catch (error) {
-                console.error('Error cargando preguntas:', error);
+                console.error('❌ Error cargando preguntas:', error);
             }
         },
 

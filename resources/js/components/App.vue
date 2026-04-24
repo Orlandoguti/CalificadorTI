@@ -1,5 +1,7 @@
 <template>
     <div id="app">
+        <!-- Indicador de estado offline -->
+        <offline-indicator />
         <!-- Usar el NUEVO RoleBasedRouter -->
         <role-based-router />
     </div>
@@ -7,11 +9,13 @@
 
 <script>
 import RoleBasedRouter from './RoleBasedRouter.vue';
+import OfflineIndicator from './OfflineIndicator.vue';
 
 export default {
     name: 'App',
     components: {
-        RoleBasedRouter
+        RoleBasedRouter,
+        OfflineIndicator
     },
     data() {
         return {

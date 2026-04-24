@@ -86,9 +86,9 @@
                                 <button @click="cargarEstadisticas" class="btn-primary">
                                     <i class="fas fa-sync-alt"></i> Actualizar
                                 </button>
-                               <!-- <button @click="exportarReporte" class="btn-secondary">
-                                    <i class="fas fa-download"></i> Exportar
-                                </button>--> 
+                                <button @click="exportarCalificaciones" class="btn-secondary" :disabled="exportandoCalificaciones">
+                                    <i class="fas fa-download"></i> {{ exportandoCalificaciones ? 'Exportando...' : 'Exportar Calificaciones' }}
+                                </button>
                             </div>  
                         </div>
                     </div>
@@ -371,10 +371,10 @@
 						<h2 class="section-title">CSAT - Análisis por Nivel de Calificación</h2>
 						
 						<div class="csat-niveles-grid">
-							<!-- Muy Insatisfechos (Nivel 1) -->
+							<!-- Muy Satisfechos (Nivel 1) -->
 							<div class="csat-nivel-card">
 								<div class="csat-nivel-header nivel-1">
-									<h3>Muy Insatisfechos</h3>
+									<h3>Muy Satisfechos</h3>
 								</div>
 								<div class="csat-nivel-content">
 									<div class="chart-container-small">
@@ -392,7 +392,7 @@
 											</thead>
 											<tbody>
 												<tr>
-													<td class="nivel-label nivel-1">Muy Insatisfechos</td>
+													<td class="nivel-label nivel-1">Muy Satisfechos</td>
 													<td v-for="dimension in getDimensionesUnicasCSAT(1)" :key="dimension">
 														{{ getCantidadDimensionCSAT(1, dimension) }}
 													</td>
@@ -403,10 +403,10 @@
 								</div>
 							</div>
 
-							<!-- Insatisfechos (Nivel 2) -->
+							<!-- Satisfechos (Nivel 2) -->
 							<div class="csat-nivel-card">
 								<div class="csat-nivel-header nivel-2">
-									<h3>Insatisfechos</h3>
+									<h3>Satisfechos</h3>
 								</div>
 								<div class="csat-nivel-content">
 									<div class="chart-container-small">
@@ -424,7 +424,7 @@
 											</thead>
 											<tbody>
 												<tr>
-													<td class="nivel-label nivel-2">Insatisfechos</td>
+													<td class="nivel-label nivel-2">Satisfechos</td>
 													<td v-for="dimension in getDimensionesUnicasCSAT(2)" :key="dimension">
 														{{ getCantidadDimensionCSAT(2, dimension) }}
 													</td>
@@ -435,10 +435,10 @@
 								</div>
 							</div>
 
-							<!-- Satisfechos (Nivel 3) -->
+							<!-- Insatisfechos (Nivel 3) -->
 							<div class="csat-nivel-card">
 								<div class="csat-nivel-header nivel-3">
-									<h3>Satisfechos</h3>
+									<h3>Insatisfechos</h3>
 								</div>
 								<div class="csat-nivel-content">
 									<div class="chart-container-small">
@@ -456,7 +456,7 @@
 											</thead>
 											<tbody>
 												<tr>
-													<td class="nivel-label nivel-3">Satisfechos</td>
+													<td class="nivel-label nivel-3">Insatisfechos</td>
 													<td v-for="dimension in getDimensionesUnicasCSAT(3)" :key="dimension">
 														{{ getCantidadDimensionCSAT(3, dimension) }}
 													</td>
@@ -467,10 +467,10 @@
 								</div>
 							</div>
 
-							<!-- Muy Satisfechos (Nivel 4) -->
+							<!-- Muy Insatisfechos (Nivel 4) -->
 							<div class="csat-nivel-card">
 								<div class="csat-nivel-header nivel-4">
-									<h3>Muy Satisfechos</h3>
+									<h3>Muy Insatisfechos</h3>
 								</div>
 								<div class="csat-nivel-content">
 									<div class="chart-container-small">
@@ -488,7 +488,7 @@
 											</thead>
 											<tbody>
 												<tr>
-													<td class="nivel-label nivel-4">Muy Satisfechos</td>
+													<td class="nivel-label nivel-4">Muy Insatisfechos</td>
 													<td v-for="dimension in getDimensionesUnicasCSAT(4)" :key="dimension">
 														{{ getCantidadDimensionCSAT(4, dimension) }}
 													</td>
@@ -532,12 +532,12 @@
 									<tr v-for="row in tablaUltimosDias" :key="row.fecha">
 										<td>{{ formatearFecha(row.fecha) }}</td>
 										<td>{{ row.csat }}</td>
-										<td>{{ row.total > 0 ? Math.round((row.csat / row.total) * 100) : 0 }}%</td>
+										<td>{{ row.csatPorcentaje || 0 }}%</td>
 										<td>{{ row.fcr }}</td>
-										<td>{{ row.total > 0 ? Math.round((row.fcr / row.total) * 100) : 0 }}%</td>
+										<td>{{ row.fcrPorcentaje || 0 }}%</td>
 										<!--
 										<td>{{ row.nps }}</td>
-										<td>{{ row.total > 0 ? Math.round((row.nps / row.total) * 100) : 0 }}%</td>
+										<td>{{ row.npsPorcentaje || 0 }}%</td>
 										-->
 										<td>{{ row.total }}</td>
 									</tr>
@@ -546,6 +546,229 @@
 									</tr>
 								</tbody>
 							</table>
+						</div>
+					</div>
+
+					<!-- Ranking de Áreas: Satisfacción e Insatisfacción -->
+					<div class="chart-card full-width" style="margin-top: 2rem;">
+						<div class="chart-header" style="justify-items: center;">
+							<h3>Ranking de Áreas</h3>
+							<p>Áreas más valoradas y menos valoradas según las calificaciones recibidas</p>
+						</div>
+						<div class="ranking-areas-dual-container">
+							<!-- Ranking por Satisfacción -->
+							<div class="ranking-section center-text">
+								<h4 class="ranking-section-title satisfaccion-title" style="justify-content: center;">
+									<i class="fas fa-thumbs-up"></i>
+									Satisfacción
+								</h4>
+								<div class="ranking-areas-container">
+									<div 
+										v-for="(area, index) in rankingAreas" 
+										:key="'satisfaccion-' + area.area_id" 
+										class="ranking-area-item"
+										:class="{ 'top-1': index === 0, 'top-2': index === 1, 'top-3': index === 2 }"
+									>
+										<div class="ranking-position">
+											<span class="position-number">#{{ index + 1 }}</span>
+										</div>
+										<div class="ranking-area-info">
+											<h4 class="area-nombre">{{ area.area_nombre }}</h4>
+											<div class="estrellas-container">
+												<span 
+													v-for="n in 5" 
+													:key="n"
+													class="estrella"
+													:class="{
+														'completa': n <= Math.floor(area.promedio_estrellas),
+														'media': n === Math.ceil(area.promedio_estrellas) && area.promedio_estrellas % 1 >= 0.5 && area.promedio_estrellas % 1 < 1,
+														'vacia': n > Math.ceil(area.promedio_estrellas) || (n === Math.ceil(area.promedio_estrellas) && area.promedio_estrellas % 1 < 0.5)
+													}"
+												>
+													★
+												</span>
+												<span class="promedio-texto">{{ area.promedio_estrellas.toFixed(1) }}</span>
+											</div>
+											<div class="ranking-stats">
+												<span class="stat-item">
+													<i class="fas fa-percentage"></i>
+													{{ area.porcentaje_combinado || 0 }}%
+												</span>
+												<span class="stat-item">
+													<i class="fas fa-chart-bar"></i>
+													{{ area.total_calificaciones }} calificaciones
+												</span>
+											</div>
+										</div>
+									</div>
+									<div v-if="rankingAreas.length === 0" class="no-data-message">
+										<p>No hay datos de calificaciones</p>
+									</div>
+								</div>
+							</div>
+
+							<!-- Ranking por Insatisfacción -->
+							<div class="ranking-section">
+								<h4 class="ranking-section-title insatisfaccion-title" style="justify-content: center;">
+									<i class="fas fa-thumbs-down"></i>
+									Insatisfacción
+								</h4>
+								<div class="ranking-areas-container">
+									<div 
+										v-for="(area, index) in rankingAreasInsatisfaccion" 
+										:key="'insatisfaccion-' + area.area_id" 
+										class="ranking-area-item insatisfaccion-item"
+										:class="{ 'worst-1': index === 0, 'worst-2': index === 1, 'worst-3': index === 2 }"
+									>
+										<div class="ranking-position">
+											<span class="position-number">#{{ index + 1 }}</span>
+										</div>
+										<div class="ranking-area-info">
+											<h4 class="area-nombre">{{ area.area_nombre }}</h4>
+											<div class="estrellas-container">
+												<span 
+													v-for="n in 5" 
+													:key="n"
+													class="estrella insatisfaccion-x"
+													:class="{
+														'completa': n <= Math.floor(area.promedio_estrellas),
+														'media': n === Math.ceil(area.promedio_estrellas) && area.promedio_estrellas % 1 >= 0.5 && area.promedio_estrellas % 1 < 1,
+														'vacia': n > Math.ceil(area.promedio_estrellas) || (n === Math.ceil(area.promedio_estrellas) && area.promedio_estrellas % 1 < 0.5)
+													}"
+												>
+													✕
+												</span>
+												<span class="promedio-texto">{{ area.promedio_estrellas.toFixed(1) }}</span>
+											</div>
+											<div class="ranking-stats">
+												<span class="stat-item">
+													<i class="fas fa-percentage"></i>
+													{{ area.porcentaje_combinado || 0 }}%
+												</span>
+												<span class="stat-item">
+													<i class="fas fa-chart-bar"></i>
+													{{ area.total_calificaciones }} calificaciones
+												</span>
+											</div>
+										</div>
+									</div>
+									<div v-if="rankingAreasInsatisfaccion.length === 0" class="no-data-message">
+										<p>No hay datos de calificaciones</p>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Textos más anotados en "Otros" -->
+					<div class="charts-grid" v-if="activeTab === 'dashboard'" style="margin-top: 2rem;">
+						<!-- CSAT Textos -->
+						<div class="chart-card">
+							<div class="chart-header">
+								<h3>Textos más anotados en "Otros" - CSAT</h3>
+								<p>Respuestas de texto libre más frecuentes</p>
+							</div>
+							<div class="chart-container">
+								<canvas ref="textosCSATChart"></canvas>
+							</div>
+							<div class="table-container" style="margin-top: 1rem; max-height: 400px; overflow-y: auto;">
+								<table class="data-table">
+									<thead>
+										<tr>
+											<th>#</th>
+											<th>Texto</th>
+											<th>Cantidad</th>
+											<th>Última respuesta</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr v-for="(item, idx) in (estadisticas?.textosMasAnotados?.csat || [])" :key="'csat-' + idx">
+											<td>{{ idx + 1 }}</td>
+											<td style="text-align: left; max-width: 400px; word-wrap: break-word;">{{ item.texto }}</td>
+											<td>{{ item.cantidad }}</td>
+											<td style="white-space: nowrap;">{{ formatearFechaHora(item.ultima_fecha) }}</td>
+										</tr>
+										<tr v-if="!estadisticas?.textosMasAnotados?.csat || estadisticas.textosMasAnotados.csat.length === 0">
+											<td colspan="4">No hay textos registrados</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+						<!-- FCR Textos -->
+						<div class="chart-card">
+							<div class="chart-header">
+								<h3>Textos más anotados en "Otros" - FCR</h3>
+								<p>Respuestas de texto libre más frecuentes</p>
+							</div>
+							<div class="chart-container">
+								<canvas ref="textosFCRChart"></canvas>
+							</div>
+							<div class="table-container" style="margin-top: 1rem; max-height: 400px; overflow-y: auto;">
+								<table class="data-table">
+									<thead>
+										<tr>
+											<th>#</th>
+											<th>Texto</th>
+											<th>Cantidad</th>
+											<th>Última respuesta</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr v-for="(item, idx) in (estadisticas?.textosMasAnotados?.fcr || [])" :key="'fcr-' + idx">
+											<td>{{ idx + 1 }}</td>
+											<td style="text-align: left; max-width: 400px; word-wrap: break-word;">{{ item.texto }}</td>
+											<td>{{ item.cantidad }}</td>
+											<td style="white-space: nowrap;">{{ formatearFechaHora(item.ultima_fecha) }}</td>
+										</tr>
+										<tr v-if="!estadisticas?.textosMasAnotados?.fcr || estadisticas.textosMasAnotados.fcr.length === 0">
+											<td colspan="4">No hay textos registrados</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+
+					<!-- Tabla de textos por área -->
+					<div class="charts-grid" v-if="activeTab === 'dashboard'" style="margin-top: 2rem;">
+						<div class="chart-card full-width">
+							<div class="chart-header">
+								<h3>Textos anotados en "Otros" por Área</h3>
+								<p>Respuestas de texto libre agrupadas por área y tipo de calificación</p>
+							</div>
+							<div class="table-container" style="margin-top: 1rem; max-height: 600px; overflow-y: auto;">
+								<table class="data-table">
+									<thead>
+										<tr>
+											<th>Área</th>
+											<th>Tipo</th>
+											<th>Texto</th>
+											<th>Cantidad</th>
+											<th>Última respuesta</th>
+										</tr>
+									</thead>
+									<tbody>
+										<template v-for="(textos, areaNombre) in (estadisticas?.textosMasAnotados?.porArea || {})" :key="areaNombre">
+											<tr v-for="(item, idx) in textos" :key="`${areaNombre}-${item.tipo}-${idx}`">
+												<td v-if="idx === 0" :rowspan="textos.length" style="vertical-align: top; font-weight: 600;">{{ areaNombre }}</td>
+												<td>
+													<span :class="item.tipo === 'csat' ? 'badge-csat' : 'badge-fcr'">
+														{{ item.tipo.toUpperCase() }}
+													</span>
+												</td>
+												<td style="text-align: left; max-width: 500px; word-wrap: break-word;">{{ item.texto }}</td>
+												<td>{{ item.cantidad }}</td>
+												<td style="white-space: nowrap;">{{ formatearFechaHora(item.ultima_fecha) }}</td>
+											</tr>
+										</template>
+										<tr v-if="!estadisticas?.textosMasAnotados?.porArea || Object.keys(estadisticas.textosMasAnotados.porArea).length === 0">
+											<td colspan="5">No hay textos registrados</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
 						</div>
 					</div>
                 </div>               
@@ -686,6 +909,7 @@ export default {
                 nivelIndicador: {},
                 encuestasPorArea: [],
                 relacionNivelEncuestas: {},
+                textosMasAnotados: { csat: [], fcr: [], porArea: {} },
                 indicadoresDimensiones: {},
                 // distribucionNPS: {}, // COMENTADO
                 distribucionCSAT: {},
@@ -704,6 +928,11 @@ export default {
             top10FCRDimensionesChart: null,
             top10DimChartRefs: {},
             top10AllDimChart: null,
+            textosCSATChart: null,
+            textosFCRChart: null,
+            
+            // Exportación
+            exportandoCalificaciones: false,
             csatNivelCharts: {}, // Gráficos por nivel CSAT
             ultimos5DiasComboChart: null // Gráfico combinado últimos 5 días
         }
@@ -750,6 +979,26 @@ export default {
         },
 
         // Tabla: últimos 5 días con totales por tipo y distribución
+        rankingAreas() {
+            try {
+                const ranking = this.estadisticas?.rankingAreas || [];
+                return ranking;
+            } catch (error) {
+                console.error('Error al obtener ranking de áreas:', error);
+                return [];
+            }
+        },
+
+        rankingAreasInsatisfaccion() {
+            try {
+                const ranking = this.estadisticas?.rankingAreasInsatisfaccion || [];
+                return ranking;
+            } catch (error) {
+                console.error('Error al obtener ranking de áreas por insatisfacción:', error);
+                return [];
+            }
+        },
+
         tablaUltimosDias() {
             const porTipo = this.estadisticas?.relacionNivelEncuestas || {};
             const tipos = ['csat', 'fcr']; // 'nps' removido
@@ -761,19 +1010,65 @@ export default {
             const ultimas = fechas.slice(Math.max(0, fechas.length - 5));
 
             const mapPorTipo = {};
+            const mapPorcentajes = {};
             tipos.forEach(t => {
                 mapPorTipo[t] = {};
+                mapPorcentajes[t] = {};
                 (porTipo[t] || []).forEach(item => {
                     mapPorTipo[t][item.fecha] = item.cantidad_encuestas || 0;
+                    // Usar el porcentaje del backend, que ya está calculado correctamente
+                    mapPorcentajes[t][item.fecha] = item.porcentaje !== undefined && item.porcentaje !== null ? parseFloat(item.porcentaje) : 0;
                 });
             });
 
             return ultimas.map(f => {
                 const csat = mapPorTipo.csat[f] || 0;
                 const fcr = mapPorTipo.fcr[f] || 0;
+                let csatPorcentaje = mapPorcentajes.csat[f];
+                let fcrPorcentaje = mapPorcentajes.fcr[f];
+                
+                // Si el porcentaje no viene del backend o es 0, calcularlo localmente
+                // pero solo si tenemos datos
+                if ((!csatPorcentaje || csatPorcentaje === 0) && csat > 0) {
+                    // Esto no debería pasar si el backend está funcionando correctamente
+                    console.warn(`⚠️ CSAT porcentaje no disponible para fecha ${f}, usando 0`);
+                    csatPorcentaje = 0;
+                }
+                if ((!fcrPorcentaje || fcrPorcentaje === 0) && fcr > 0) {
+                    console.warn(`⚠️ FCR porcentaje no disponible para fecha ${f}, usando 0`);
+                    fcrPorcentaje = 0;
+                }
+                
+                // Asegurar que los porcentajes sean números válidos
+                csatPorcentaje = csatPorcentaje !== undefined && csatPorcentaje !== null ? parseFloat(csatPorcentaje) : 0;
+                fcrPorcentaje = fcrPorcentaje !== undefined && fcrPorcentaje !== null ? parseFloat(fcrPorcentaje) : 0;
+                
                 // const nps = mapPorTipo.nps[f] || 0; // COMENTADO
                 const total = csat + fcr; // nps removido
-                return { fecha: f, csat, fcr, total }; // nps removido
+                
+                const resultado = { 
+                    fecha: f, 
+                    csat, 
+                    fcr, 
+                    total,
+                    csatPorcentaje: Math.round(csatPorcentaje),
+                    fcrPorcentaje: Math.round(fcrPorcentaje)
+                };
+                
+                // Debug temporal - mostrar todos los datos
+                console.log(`📊 Fecha: ${f}`, {
+                    csat: csat,
+                    fcr: fcr,
+                    csatPorcentaje: csatPorcentaje,
+                    fcrPorcentaje: fcrPorcentaje,
+                    total: total,
+                    porcentajesBackend: {
+                        csat: mapPorcentajes.csat[f],
+                        fcr: mapPorcentajes.fcr[f]
+                    }
+                });
+                
+                return resultado; // nps removido
             });
         },
 
@@ -783,6 +1078,9 @@ export default {
         }
     },
     async mounted() {
+        // Registrar componentes de Chart.js
+        Chart.register(...registerables);
+        
         await this.loadUserData();
         await this.cargarDatosBase();
         await this.cargarEstadisticas();
@@ -836,7 +1134,15 @@ export default {
 
                 const response = await fetch(`/api/estadisticas?${params.toString()}`);
                 if (response.ok) {
-                    this.estadisticas = await response.json();
+                    const datos = await response.json();
+                    // Asegurar que textosMasAnotados esté presente
+                    if (!datos.textosMasAnotados) {
+                        datos.textosMasAnotados = { csat: [], fcr: [], porArea: {} };
+                    }
+                    if (!datos.textosMasAnotados.porArea) {
+                        datos.textosMasAnotados.porArea = {};
+                    }
+                    this.estadisticas = datos;
                     console.log('📊 Estadísticas recibidas (completo):', JSON.stringify(this.estadisticas, null, 2));
                     console.log('📊 Nivel Indicador:', this.estadisticas.nivelIndicador);
                     console.log('📊 CSAT:', this.estadisticas.nivelIndicador?.csat);
@@ -855,13 +1161,25 @@ export default {
                         });
                     }
                     
+                    // Esperar a que Vue actualice el DOM antes de renderizar gráficos
                     this.$nextTick(() => {
                         setTimeout(() => {
-                            this.destruirGraficos();
-                            setTimeout(() => {
-                                this.renderizarGraficos();
-                            }, 50);
-                        }, 100);
+                            try {
+                                this.destruirGraficos();
+                                // Aumentar el tiempo de espera para asegurar que el DOM esté listo
+                                setTimeout(() => {
+                                    try {
+                                        this.renderizarGraficos();
+                                    } catch (error) {
+                                        console.error('❌ Error al renderizar gráficos:', error);
+                                        console.error('Stack trace:', error.stack);
+                                    }
+                                }, 300);
+                            } catch (error) {
+                                console.error('❌ Error al destruir gráficos:', error);
+                                console.error('Stack trace:', error.stack);
+                            }
+                        }, 200);
                     });
                 } else {
                     const errorText = await response.text();
@@ -1065,44 +1383,85 @@ export default {
         },
 
         renderizarGraficos() {
-            this.destruirGraficos();
-            
-            // Polar Area Charts para indicadores
-            if (this.mostrarIndicador('csat')) {
-                this.renderizarPolarChart('csat');
-            }
-            if (this.mostrarIndicador('fcr')) {
-                this.renderizarPolarChart('fcr');
-            }
-            // if (this.mostrarIndicador('nps')) { // COMENTADO
-            //     this.renderizarPolarChart('nps');
-            // }
-            
-            // Gráfico de encuestas por área
-            this.renderizarGraficoEncuestasArea();
-            
-            // Gráfico de distribución NPS (COMENTADO)
-            // if (this.mostrarIndicador('nps')) {
-            //     this.renderizarGraficoDistribucionNPS();
-            // }
-            
-            this.renderizarGraficoEncuestasPorDiaTipos();
-            
-            // Gráficos de dimensiones
-            this.tiposIndicadoresActivos.forEach(tipo => {
-                this.renderizarGraficoDimensiones(tipo);
-            });
+            try {
+                this.destruirGraficos();
+                
+                // Polar Area Charts para indicadores
+                if (this.mostrarIndicador('csat')) {
+                    try {
+                        this.renderizarPolarChart('csat');
+                    } catch (error) {
+                        console.error('Error renderizando polar chart CSAT:', error);
+                    }
+                }
+                if (this.mostrarIndicador('fcr')) {
+                    try {
+                        this.renderizarPolarChart('fcr');
+                    } catch (error) {
+                        console.error('Error renderizando polar chart FCR:', error);
+                    }
+                }
+                
+                // Gráfico de encuestas por área
+                try {
+                    this.renderizarGraficoEncuestasArea();
+                } catch (error) {
+                    console.error('Error renderizando gráfico encuestas por área:', error);
+                }
+                
+                try {
+                    this.renderizarGraficoEncuestasPorDiaTipos();
+                } catch (error) {
+                    console.error('Error renderizando gráfico encuestas por día:', error);
+                }
+                
+                // Gráficos de dimensiones
+                this.tiposIndicadoresActivos.forEach(tipo => {
+                    try {
+                        this.renderizarGraficoDimensiones(tipo);
+                    } catch (error) {
+                        console.error(`Error renderizando gráfico dimensiones ${tipo}:`, error);
+                    }
+                });
 
-            // Top 10 combinado (horizontal)
-            this.renderizarTop10DimensionesAll();
+                // Top 10 combinado (horizontal)
+                try {
+                    this.renderizarTop10DimensionesAll();
+                } catch (error) {
+                    console.error('Error renderizando top 10 dimensiones:', error);
+                }
 
-            // Gráficos CSAT por nivel
-            if (this.mostrarIndicador('csat')) {
-                this.renderizarGraficosCSATPorNivel();
+                // Gráficos CSAT por nivel
+                if (this.mostrarIndicador('csat')) {
+                    try {
+                        this.renderizarGraficosCSATPorNivel();
+                    } catch (error) {
+                        console.error('Error renderizando gráficos CSAT por nivel:', error);
+                    }
+                }
+
+                // Gráfico combinado últimos 5 días
+                try {
+                    this.renderizarGraficoUltimos5DiasCombo();
+                } catch (error) {
+                    console.error('Error renderizando gráfico últimos 5 días:', error);
+                }
+
+                // Gráficos de textos más anotados
+                try {
+                    this.renderizarGraficoTextosCSAT();
+                } catch (error) {
+                    console.error('Error renderizando gráfico textos CSAT:', error);
+                }
+
+                try {
+                    this.renderizarGraficoTextosFCR();
+                } catch (error) {
+                    console.error('Error renderizando gráfico textos FCR:', error);
+                }
+            } catch (error) {
+                console.error('❌ Error general al renderizar gráficos:', error);
             }
-
-            // Gráfico combinado últimos 5 días
-            this.renderizarGraficoUltimos5DiasCombo();
         },
 
         renderizarPolarChart(tipo) {
@@ -1559,6 +1918,21 @@ export default {
 
         },
 
+        formatearFechaHora(valor) {
+            if (!valor) return '—';
+            const s = String(valor);
+            const normalized = s.includes('T') || s.includes('Z') ? s : s.replace(' ', 'T');
+            const d = new Date(normalized);
+            if (Number.isNaN(d.getTime())) return s;
+            return d.toLocaleString('es', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+
         destruirGraficos() {
             if (this.encuestasAreaChart) {
                 this.encuestasAreaChart.destroy();
@@ -1628,6 +2002,24 @@ export default {
                 this.ultimos5DiasComboChart.destroy();
                 this.ultimos5DiasComboChart = null;
             }
+
+            if (this.textosCSATChart) {
+                this.textosCSATChart.destroy();
+                this.textosCSATChart = null;
+            }
+
+            if (this.textosFCRChart) {
+                this.textosFCRChart.destroy();
+                this.textosFCRChart = null;
+            }
+
+            // Destruir gráficos CSAT por nivel
+            Object.keys(this.csatNivelCharts).forEach(key => {
+                if (this.csatNivelCharts[key]) {
+                    this.csatNivelCharts[key].destroy();
+                }
+            });
+            this.csatNivelCharts = {};
         },
 
         // Resto de métodos utilitarios sin cambios...
@@ -1707,6 +2099,72 @@ export default {
             }
         },
 
+        async exportarCalificaciones() {
+            this.exportandoCalificaciones = true;
+            try {
+                const params = new URLSearchParams();
+                
+                if (this.filters.fechaInicio) params.append('fecha_inicio', this.filters.fechaInicio);
+                if (this.filters.fechaFin) params.append('fecha_fin', this.filters.fechaFin);
+                if (this.filters.areaId) params.append('area_id', this.filters.areaId);
+                if (this.filters.nivelId) params.append('nivel_id', this.filters.nivelId);
+                if (this.filters.tipoCalificacion) params.append('tipo_calificacion', this.filters.tipoCalificacion);
+                
+                const sedeId = this.sedeSeleccionada ? this.sedeSeleccionada.id : null;
+                if (sedeId) params.append('sede_id', sedeId);
+
+                const response = await fetch(`/api/calificaciones/exportar?${params.toString()}`);
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    // Obtener el nombre del archivo del header Content-Disposition o usar uno por defecto
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = `calificaciones-${new Date().toISOString().split('T')[0]}.xlsx`;
+                    if (contentDisposition) {
+                        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+                        if (filenameMatch) {
+                            filename = filenameMatch[1];
+                        }
+                    }
+                    
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    this.mostrarMensaje('Calificaciones exportadas correctamente', 'success');
+                } else {
+                    // Intentar obtener el mensaje de error del servidor
+                    let errorMessage = 'Error desconocido';
+                    try {
+                        const errorText = await response.text();
+                        if (errorText) {
+                            try {
+                                const errorData = JSON.parse(errorText);
+                                errorMessage = errorData.error || errorData.message || errorText;
+                            } catch {
+                                errorMessage = errorText;
+                            }
+                        }
+                    } catch (e) {
+                        errorMessage = `Error HTTP ${response.status}: ${response.statusText}`;
+                    }
+                    throw new Error(errorMessage);
+                }
+            } catch (error) {
+                console.error('Error exportando calificaciones:', error);
+                const mensajeError = error.message || 'Error al exportar las calificaciones';
+                this.mostrarMensaje('Error al exportar las calificaciones: ' + mensajeError, 'error');
+            } finally {
+                this.exportandoCalificaciones = false;
+            }
+        },
+
         onCambioSede(sede) {
             console.log('🎯 AdminDashboard: Sede seleccionada:', sede);
             this.sedeSeleccionada = sede;
@@ -1753,14 +2211,14 @@ export default {
 
         // Métodos para CSAT por nivel
         getDimensionesUnicasCSAT(nivel) {
-            const todosLosNiveles = [1, 2, 3, 4];
+            // Solo obtener dimensiones del nivel específico, no de todos los niveles
+            const datos = this.estadisticas?.csatDimensionesPorNivel?.[nivel] || [];
             const opcionesSet = new Set();
             
-            todosLosNiveles.forEach(n => {
-                const datos = this.estadisticas?.csatDimensionesPorNivel?.[n] || [];
-                datos.forEach(dim => {
+            datos.forEach(dim => {
+                if (dim.dimension && dim.dimension.trim() !== '') {
                     opcionesSet.add(dim.dimension);
-                });
+                }
             });
             
             return Array.from(opcionesSet).sort();
@@ -1805,11 +2263,12 @@ export default {
                 
                 const { labels, data } = this.getDatosGraficoCSATNivel(nivel);
                 
+                // Colores según estructura: 1=Muy Satisfecho, 2=Satisfecho, 3=Insatisfecho, 4=Muy Insatisfecho
                 const colores = {
-                    1: '#dc2626',
-                    2: '#f97316',
-                    3: '#f59e0b',
-                    4: '#10b981'
+                    1: '#10b981', // Verde para Muy Satisfecho
+                    2: '#3b82f6', // Azul para Satisfecho
+                    3: '#f59e0b', // Naranja para Insatisfecho
+                    4: '#dc2626'  // Rojo para Muy Insatisfecho
                 };
                 
                 if (labels.length === 0) {
@@ -1861,7 +2320,10 @@ export default {
 
         renderizarGraficoUltimos5DiasCombo() {
             const canvas = this.$refs.ultimos5DiasComboChart;
-            if (!canvas) return;
+            if (!canvas) {
+                console.warn('Canvas ultimos5DiasComboChart no encontrado');
+                return;
+            }
 
             if (this.ultimos5DiasComboChart) {
                 this.ultimos5DiasComboChart.destroy();
@@ -1869,12 +2331,39 @@ export default {
             }
 
             const datos = this.tablaUltimosDias;
-            if (!datos || datos.length === 0) return;
+            if (!datos || datos.length === 0) {
+                // Si no hay datos, renderizar un gráfico vacío para mantener el canvas visible
+                console.warn('No hay datos para renderizar gráfico últimos 5 días');
+                this.ultimos5DiasComboChart = new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Sin datos'],
+                        datasets: [{
+                            label: 'Sin datos',
+                            data: [0],
+                            backgroundColor: 'rgba(200, 200, 200, 0.3)',
+                            borderColor: 'rgba(200, 200, 200, 0.5)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+                return;
+            }
 
             const labels = datos.map(row => this.formatearFecha(row.fecha));
             const totalData = datos.map(row => row.total);
-            const csatData = datos.map(row => row.csat);
-            const fcrData = datos.map(row => row.fcr);
+            // Usar porcentajes en lugar de cantidades
+            const csatData = datos.map(row => row.csatPorcentaje || 0);
+            const fcrData = datos.map(row => row.fcrPorcentaje || 0);
             // const npsData = datos.map(row => row.nps); // COMENTADO
 
             this.ultimos5DiasComboChart = new Chart(canvas, {
@@ -1894,7 +2383,7 @@ export default {
                             order: 1
                         },
                         {
-                            label: 'CSAT',
+                            label: 'CSAT %',
                             data: csatData,
                             type: 'line',
                             borderColor: '#4f46e5',
@@ -1910,7 +2399,7 @@ export default {
                             order: 0
                         },
                         {
-                            label: 'FCR',
+                            label: 'FCR %',
                             data: fcrData,
                             type: 'line',
                             borderColor: '#10b981',
@@ -1961,12 +2450,19 @@ export default {
                                 label: (context) => {
                                     const label = context.dataset.label || '';
                                     const value = context.parsed.y || 0;
+                                    const row = datos[context.dataIndex];
+                                    
                                     if (context.datasetIndex === 0) {
-                                        return `${label}: ${value}`;
+                                        // Total día: mostrar cantidad y porcentaje de satisfacción
+                                        const csatCantidad = row.csat || 0;
+                                        const fcrCantidad = row.fcr || 0;
+                                        // Usar los porcentajes de satisfacción, no de distribución
+                                        const csatPorcentaje = (row.csatPorcentaje !== undefined && row.csatPorcentaje !== null) ? row.csatPorcentaje : 0;
+                                        const fcrPorcentaje = (row.fcrPorcentaje !== undefined && row.fcrPorcentaje !== null) ? row.fcrPorcentaje : 0;
+                                        
                                     } else {
-                                        const total = totalData[context.dataIndex];
-                                        const porcentaje = total > 0 ? Math.round((value / total) * 100) : 0;
-                                        return `${label}: ${value} (${porcentaje}%)`;
+                                        // CSAT o FCR: mostrar porcentaje de satisfacción
+                                        return `${label}: ${value}%`;
                                     }
                                 }
                             }
@@ -1991,9 +2487,15 @@ export default {
                             display: true,
                             position: 'right',
                             beginAtZero: true,
+                            max: 100,
                             title: {
                                 display: true,
-                                text: 'CSAT, FCR' // NPS removido
+                                text: '% Satisfacción (CSAT, FCR)' // NPS removido
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
                             }
                         }
                     }
@@ -2066,8 +2568,141 @@ export default {
             }
             
             return { left: `calc(${porcentaje}% - 8px)` };
+        },
+
+        renderizarGraficoTextosCSAT() {
+            const canvas = this.$refs.textosCSATChart;
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            if (this.textosCSATChart) {
+                this.textosCSATChart.destroy();
+            }
+
+            const datos = [...(this.estadisticas?.textosMasAnotados?.csat || [])].sort(
+                (a, b) => (b.cantidad || 0) - (a.cantidad || 0)
+            );
+            const top10 = datos.slice(0, 10);
+
+            if (top10.length === 0) {
+                return;
+            }
+
+            const labels = top10.map((item, idx) => {
+                const texto = item.texto.length > 30 ? item.texto.substring(0, 30) + '...' : item.texto;
+                return `${idx + 1}. ${texto}`;
+            });
+            const cantidades = top10.map(item => item.cantidad);
+
+            this.textosCSATChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Cantidad de veces',
+                        data: cantidades,
+                        backgroundColor: 'rgba(79, 70, 229, 0.6)',
+                        borderColor: 'rgba(79, 70, 229, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    const index = context[0].dataIndex;
+                                    return top10[index].texto;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        },
+
+        renderizarGraficoTextosFCR() {
+            const canvas = this.$refs.textosFCRChart;
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            if (this.textosFCRChart) {
+                this.textosFCRChart.destroy();
+            }
+
+            const datos = [...(this.estadisticas?.textosMasAnotados?.fcr || [])].sort(
+                (a, b) => (b.cantidad || 0) - (a.cantidad || 0)
+            );
+            const top10 = datos.slice(0, 10);
+
+            if (top10.length === 0) {
+                return;
+            }
+
+            const labels = top10.map((item, idx) => {
+                const texto = item.texto.length > 30 ? item.texto.substring(0, 30) + '...' : item.texto;
+                return `${idx + 1}. ${texto}`;
+            });
+            const cantidades = top10.map(item => item.cantidad);
+
+            this.textosFCRChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Cantidad de veces',
+                        data: cantidades,
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                        borderColor: 'rgba(16, 185, 129, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    const index = context[0].dataIndex;
+                                    return top10[index].texto;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
         }
-        
     },
 
     beforeUnmount() {
@@ -3492,20 +4127,21 @@ export default {
     text-align: center;
 }
 
+/* Colores según estructura: 1=Muy Satisfecho, 2=Satisfecho, 3=Insatisfecho, 4=Muy Insatisfecho */
 .csat-nivel-header.nivel-1 {
-    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%); /* Verde para Muy Satisfecho */
 }
 
 .csat-nivel-header.nivel-2 {
-    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); /* Azul para Satisfecho */
 }
 
 .csat-nivel-header.nivel-3 {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); /* Naranja para Insatisfecho */
 }
 
 .csat-nivel-header.nivel-4 {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); /* Rojo para Muy Insatisfecho */
 }
 
 .csat-nivel-header h3 {
@@ -3562,24 +4198,25 @@ export default {
     white-space: nowrap;
 }
 
+/* Colores según estructura: 1=Muy Satisfecho, 2=Satisfecho, 3=Insatisfecho, 4=Muy Insatisfecho */
 .nivel-label.nivel-1 {
-    background: #fee2e2;
-    color: #991b1b;
+    background: #d1fae5; /* Verde claro para Muy Satisfecho */
+    color: #065f46;
 }
 
 .nivel-label.nivel-2 {
-    background: #fed7aa;
-    color: #9a3412;
+    background: #dbeafe; /* Azul claro para Satisfecho */
+    color: #1e40af;
 }
 
 .nivel-label.nivel-3 {
-    background: #fef3c7;
+    background: #fef3c7; /* Amarillo claro para Insatisfecho */
     color: #92400e;
 }
 
 .nivel-label.nivel-4 {
-    background: #d1fae5;
-    color: #065f46;
+    background: #fee2e2; /* Rojo claro para Muy Insatisfecho */
+    color: #991b1b;
 }
 
 @media (max-width: 1024px) {
@@ -3588,10 +4225,443 @@ export default {
     }
 }
 
+/* Ranking de Áreas por Satisfacción */
+.ranking-areas-container {
+    padding: 1.5rem 0;
+}
+
+.ranking-area-item {
+    display: flex;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    border-left: 4px solid #e5e7eb;
+}
+
+.ranking-area-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+}
+
+.ranking-area-item.top-1 {
+    border-left-color: #fbbf24;
+    background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.2);
+}
+
+.ranking-area-item.top-2 {
+    border-left-color: #94a3b8;
+    background: linear-gradient(135deg, #f1f5f9 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(148, 163, 184, 0.15);
+}
+
+.ranking-area-item.top-3 {
+    border-left-color: #cd7f32;
+    background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(205, 127, 50, 0.15);
+}
+
+.ranking-position {
+    min-width: 60px;
+    text-align: center;
+    margin-right: 1.5rem;
+}
+
+.position-number {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.ranking-area-item.top-1 .position-number {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+}
+
+.ranking-area-item.top-2 .position-number {
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(148, 163, 184, 0.4);
+}
+
+.ranking-area-item.top-3 .position-number {
+    background: linear-gradient(135deg, #cd7f32 0%, #b87333 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(205, 127, 50, 0.4);
+}
+
+.ranking-area-info {
+    flex: 1;
+}
+
+.area-nombre {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.estrellas-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.estrella {
+    font-size: 1.5rem;
+    color: #d1d5db;
+    transition: color 0.2s ease;
+    line-height: 1;
+}
+
+.estrella.completa {
+    color: #fbbf24;
+    text-shadow: 0 0 4px rgba(251, 191, 36, 0.5);
+}
+
+.estrella.media {
+    background: linear-gradient(90deg, #fbbf24 50%, #d1d5db 50%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+}
+
+.estrella.media::after {
+    content: '★';
+    position: absolute;
+    left: 0;
+    width: 50%;
+    overflow: hidden;
+    color: #fbbf24;
+    -webkit-text-fill-color: #fbbf24;
+}
+
+.promedio-texto {
+    margin-left: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.ranking-stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.5rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.stat-item i {
+    color: #9ca3af;
+}
+
+.no-data-message {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #9ca3af;
+}
+
+/* Ranking de Áreas Dual (Satisfacción e Insatisfacción) */
+.ranking-areas-dual-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    padding: 1.5rem 0;
+}
+
+.ranking-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.ranking-section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ranking-section-title.satisfaccion-title {
+    color: #10b981;
+    border-bottom-color: #10b981;
+}
+
+.ranking-section-title.insatisfaccion-title {
+    color: #ef4444;
+    border-bottom-color: #ef4444;
+}
+
+/* Estilos para X de insatisfacción */
+.estrella.insatisfaccion-x.completa {
+    color: #ef4444;
+    text-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+}
+
+.estrella.insatisfaccion-x.media {
+    background: linear-gradient(90deg, #ef4444 50%, #d1d5db 50%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+}
+
+.estrella.insatisfaccion-x.media::after {
+    content: '✕';
+    position: absolute;
+    left: 0;
+    width: 50%;
+    overflow: hidden;
+    color: #ef4444;
+    -webkit-text-fill-color: #ef4444;
+}
+
+.ranking-section-title i {
+    font-size: 1.1rem;
+}
+
+/* Ranking de Áreas por Satisfacción */
+.ranking-areas-container {
+    padding: 0;
+}
+
+.ranking-area-item {
+    display: flex;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    border-left: 4px solid #e5e7eb;
+}
+
+.ranking-area-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+}
+
+.ranking-area-item.top-1 {
+    border-left-color: #fbbf24;
+    background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.2);
+}
+
+.ranking-area-item.top-2 {
+    border-left-color: #94a3b8;
+    background: linear-gradient(135deg, #f1f5f9 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(148, 163, 184, 0.15);
+}
+
+.ranking-area-item.top-3 {
+    border-left-color: #cd7f32;
+    background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(205, 127, 50, 0.15);
+}
+
+.ranking-position {
+    min-width: 60px;
+    text-align: center;
+    margin-right: 1.5rem;
+}
+
+.position-number {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.ranking-area-item.top-1 .position-number {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+}
+
+.ranking-area-item.top-2 .position-number {
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(148, 163, 184, 0.4);
+}
+
+.ranking-area-item.top-3 .position-number {
+    background: linear-gradient(135deg, #cd7f32 0%, #b87333 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(205, 127, 50, 0.4);
+}
+
+.ranking-area-info {
+    flex: 1;
+}
+
+.area-nombre {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.estrellas-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.estrella {
+    font-size: 1.5rem;
+    color: #d1d5db;
+    transition: color 0.2s ease;
+    line-height: 1;
+}
+
+.estrella.completa {
+    color: #fbbf24;
+    text-shadow: 0 0 4px rgba(251, 191, 36, 0.5);
+}
+
+.estrella.media {
+    background: linear-gradient(90deg, #fbbf24 50%, #d1d5db 50%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+}
+
+.estrella.media::after {
+    content: '★';
+    position: absolute;
+    left: 0;
+    width: 50%;
+    overflow: hidden;
+    color: #fbbf24;
+    -webkit-text-fill-color: #fbbf24;
+}
+
+.promedio-texto {
+    margin-left: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.ranking-stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.5rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.stat-item i {
+    color: #9ca3af;
+}
+
+.no-data-message {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #9ca3af;
+}
+
+/* Estilos para ranking de insatisfacción */
+.ranking-area-item.insatisfaccion-item.worst-1 {
+    border-left-color: #ef4444;
+    background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.2);
+}
+
+.ranking-area-item.insatisfaccion-item.worst-2 {
+    border-left-color: #f87171;
+    background: linear-gradient(135deg, #fee2e2 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(248, 113, 113, 0.15);
+}
+
+.ranking-area-item.insatisfaccion-item.worst-3 {
+    border-left-color: #fb923c;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffffff 100%);
+    box-shadow: 0 4px 16px rgba(251, 146, 60, 0.15);
+}
+
+.ranking-area-item.insatisfaccion-item.worst-1 .position-number {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+.ranking-area-item.insatisfaccion-item.worst-2 .position-number {
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(248, 113, 113, 0.4);
+}
+
+.ranking-area-item.insatisfaccion-item.worst-3 .position-number {
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(251, 146, 60, 0.4);
+}
+
 @media (max-width: 768px) {
     .csat-niveles-section {
         margin: 2rem 0;
         padding: 1rem 0;
+    }
+    
+    .ranking-areas-dual-container {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    
+    .ranking-area-item {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 1rem;
+    }
+    
+    .ranking-position {
+        margin-right: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .area-nombre {
+        font-size: 1.1rem;
+    }
+    
+    .estrella {
+        font-size: 1.25rem;
     }
     
     .csat-niveles-grid {
@@ -3841,6 +4911,26 @@ export default {
     font-size: 0.75rem;
     color: #9ca3af;
     font-weight: 500;
+}
+
+.badge-csat {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background-color: rgba(79, 70, 229, 0.1);
+    color: #4F46E5;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-fcr {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 
 /* Responsive */

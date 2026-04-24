@@ -258,6 +258,55 @@
                                 <span class="checkbox-label">Email verificado</span>
                             </label>
                         </div>
+
+                        <!-- Selección de Áreas para Gestores -->
+                        <div v-if="usuarioForm.role === 'gestor' && usuarioForm.sede_id" class="form-group full-width" style="margin-top: 1.5rem;">
+                            <label class="form-label">
+                                <i class="fas fa-th-large"></i>
+                                Áreas Asignadas
+                            </label>
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.5rem; background-color: #f0f9ff; border-radius: 0.375rem; border: 1px solid #bfdbfe;">
+                                <i class="fas fa-map-marker-alt" style="color: #3b82f6;"></i>
+                                <span style="font-size: 0.875rem; color: #1e40af; font-weight: 500;">
+                                    Cargando áreas de la sede: <strong>{{ getNombreSede(usuarioForm.sede_id) }}</strong>
+                                </span>
+                            </div>
+                            <small class="form-help" style="display: block; margin-bottom: 0.75rem;">
+                                Selecciona las áreas que este gestor podrá ver. Si no seleccionas ninguna, verá todas las áreas de su sede.
+                            </small>
+                            
+                            <div v-if="cargandoAreasModal" class="loading-container" style="padding: 1rem; text-align: center;">
+                                <div class="loading-spinner"></div>
+                                <p style="margin-top: 0.5rem; color: #6b7280;">Cargando áreas...</p>
+                            </div>
+                            
+                            <div v-else class="areas-selection-container" style="max-height: 300px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.75rem;">
+                                <div v-if="areasDisponiblesModal.length === 0" class="empty-container" style="padding: 1rem; text-align: center; color: #6b7280;">
+                                    <p>No hay áreas disponibles para esta sede</p>
+                                </div>
+                                
+                                <div v-else class="areas-checkboxes-modal">
+                                    <label 
+                                        v-for="area in areasDisponiblesModal" 
+                                        :key="area.id"
+                                        class="checkbox-container"
+                                        style="display: flex; align-items: center; padding: 0.75rem; margin-bottom: 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; cursor: pointer; transition: background-color 0.2s;"
+                                        :style="{ backgroundColor: usuarioForm.areas_seleccionadas.includes(area.id) ? '#f0f9ff' : '#fff' }"
+                                    >
+                                        <input 
+                                            type="checkbox" 
+                                            :value="area.id"
+                                            v-model="usuarioForm.areas_seleccionadas"
+                                            style="margin-right: 0.75rem; cursor: pointer;"
+                                        >
+                                        <span style="flex: 1;">
+                                            <strong style="display: block; color: #1f2937;">{{ area.nombre }}</strong>
+                                            <small style="display: block; color: #6b7280; font-size: 0.875rem;">{{ area.codigo }}</small>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="modal-actions">
@@ -275,6 +324,76 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Modal Gestionar Áreas -->
+        <div v-if="mostrarModalAreas" class="modal-overlay" @click.self="cerrarModalAreas">
+            <div class="modal-container" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        <i class="fas fa-th-large"></i>
+                        Gestionar Áreas - {{ usuarioSeleccionado?.name }}
+                    </h2>
+                    <button @click="cerrarModalAreas" class="modal-close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="modal-form">
+                    <div class="form-section">
+                        <p class="form-help" style="margin-bottom: 1rem;">
+                            <i class="fas fa-info-circle"></i>
+                            Selecciona las áreas que este gestor podrá ver. Si no seleccionas ninguna, verá todas las áreas de su sede.
+                        </p>
+                        
+                        <div v-if="cargandoAreas" class="loading-container">
+                            <div class="loading-spinner"></div>
+                            <p>Cargando áreas...</p>
+                        </div>
+                        
+                        <div v-else class="areas-list">
+                            <div v-if="areasDisponibles.length === 0" class="empty-container">
+                                <p>No hay áreas disponibles para la sede del gestor</p>
+                            </div>
+                            
+                            <div v-else class="areas-checkboxes">
+                                <label 
+                                    v-for="area in areasDisponibles" 
+                                    :key="area.id"
+                                    class="checkbox-container"
+                                    style="display: flex; align-items: center; padding: 0.75rem; margin-bottom: 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; cursor: pointer;"
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        :value="area.id"
+                                        v-model="areasSeleccionadas"
+                                        style="margin-right: 0.75rem;"
+                                    >
+                                    <span style="flex: 1;">
+                                        <strong>{{ area.nombre }}</strong>
+                                        <small style="display: block; color: #6b7280;">{{ area.codigo }}</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" @click="cerrarModalAreas" class="btn-secondary">
+                            <i class="fas fa-times"></i>
+                            Cancelar
+                        </button>
+                        <button @click="guardarAreas" :disabled="guardandoAreas" class="btn-primary">
+                            <span v-if="guardandoAreas">
+                                <i class="fas fa-spinner fa-spin"></i> Guardando...
+                            </span>
+                            <span v-else>
+                                <i class="fas fa-save"></i> Guardar Áreas
+                            </span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -310,13 +429,45 @@ export default {
             role: 'user',
             sede_id: '',
             password: '',
-            email_verified: false
-        }
+            email_verified: false,
+            areas_seleccionadas: []
+        },
+        areasDisponiblesModal: [],
+        cargandoAreasModal: false,
+        mostrarModalAreas: false,
+        usuarioSeleccionado: null,
+        areasDisponibles: [],
+        areasSeleccionadas: [],
+        cargandoAreas: false,
+        guardandoAreas: false
     }
 },
     async mounted() {
         await this.cargarSedes();
         await this.cargarUsuarios();
+    },
+    watch: {
+        'usuarioForm.role'(newRole) {
+            // Si cambia el rol y no es gestor, limpiar áreas
+            if (newRole !== 'gestor') {
+                this.usuarioForm.areas_seleccionadas = [];
+                this.areasDisponiblesModal = [];
+            } else if (newRole === 'gestor' && this.usuarioForm.sede_id) {
+                // Si cambia a gestor y ya tiene sede, cargar áreas
+                this.cargarAreasModal(this.usuarioForm.sede_id);
+            }
+        },
+        'usuarioForm.sede_id'(newSedeId, oldSedeId) {
+            // Si cambia la sede y es gestor, cargar áreas de la nueva sede
+            if (this.usuarioForm.role === 'gestor' && newSedeId) {
+                this.usuarioForm.areas_seleccionadas = []; // Limpiar selección anterior
+                this.cargarAreasModal(newSedeId);
+            } else if (!newSedeId) {
+                // Si se quita la sede, limpiar áreas
+                this.areasDisponiblesModal = [];
+                this.usuarioForm.areas_seleccionadas = [];
+            }
+        }
     },
     methods: {
         getInitial(name) {
@@ -378,12 +529,14 @@ export default {
                 role: 'user',
                 sede_id: '',
                 password: '',
-                email_verified: false
+                email_verified: false,
+                areas_seleccionadas: []
             };
+            this.areasDisponiblesModal = [];
             this.mostrarModalUsuario = true;
         },
 
-        editarUsuario(usuario) {
+        async editarUsuario(usuario) {
             this.esEdicionUsuario = true;
             this.usuarioForm = {
                 id: usuario.id,
@@ -392,9 +545,17 @@ export default {
                 role: usuario.role,
                 sede_id: usuario.sede_id || '',
                 password: '',
-                email_verified: !!usuario.email_verified_at
+                email_verified: !!usuario.email_verified_at,
+                areas_seleccionadas: []
             };
             this.mostrarModalUsuario = true;
+            
+            // Si es gestor y tiene sede, cargar áreas
+            if (usuario.role === 'gestor' && usuario.sede_id) {
+                await this.cargarAreasModal(usuario.sede_id);
+                // Cargar áreas ya asignadas
+                await this.cargarAreasAsignadasUsuario(usuario.id);
+            }
         },
 
         async guardarUsuario() {
@@ -448,6 +609,22 @@ export default {
                 throw new Error(errores);
             }
             throw new Error(data.error || 'Error al guardar usuario');
+        }
+        
+        // Si es gestor, guardar las áreas asignadas (incluso si el array está vacío)
+        if (this.usuarioForm.role === 'gestor' && this.usuarioForm.sede_id) {
+            const userId = esEdicion ? this.usuarioForm.id : data.id;
+            if (userId) {
+                // 🔥 CORRECCIÓN: Siempre sincronizar áreas, incluso si el array está vacío
+                // Esto permite deseleccionar todas las áreas
+                await this.guardarAreasUsuario(userId);
+            }
+        } else if (this.usuarioForm.role === 'gestor' && esEdicion) {
+            // 🔥 CORRECCIÓN: Si es gestor pero no tiene sede, eliminar todas las áreas asignadas
+            const userId = this.usuarioForm.id;
+            if (userId) {
+                await this.guardarAreasUsuario(userId);
+            }
         }
         
         this.mostrarModalUsuario = false;
@@ -586,9 +763,169 @@ export default {
             return roles[role] || role;
         },
 
+        async gestionarAreas(usuario) {
+            if (usuario.role !== 'gestor') {
+                this.mostrarMensaje('Solo se pueden asignar áreas a gestores', 'error');
+                return;
+            }
+
+            if (!usuario.sede_id) {
+                this.mostrarMensaje('El gestor debe tener una sede asignada primero', 'error');
+                return;
+            }
+
+            this.usuarioSeleccionado = usuario;
+            this.mostrarModalAreas = true;
+            await this.cargarAreasParaGestor(usuario);
+        },
+
+        async cargarAreasParaGestor(usuario) {
+            this.cargandoAreas = true;
+            try {
+                // Cargar áreas de la sede del gestor
+                const areasResponse = await fetch(`/api/areas?sede_id=${usuario.sede_id}`);
+                if (areasResponse.ok) {
+                    this.areasDisponibles = await areasResponse.json();
+                }
+
+                // Cargar áreas ya asignadas al gestor
+                const asignadasResponse = await fetch(`/api/usuarios/${usuario.id}/areas`);
+                if (asignadasResponse.ok) {
+                    const areasAsignadas = await asignadasResponse.json();
+                    this.areasSeleccionadas = areasAsignadas.map(a => a.id);
+                } else {
+                    this.areasSeleccionadas = [];
+                }
+            } catch (error) {
+                console.error('Error cargando áreas:', error);
+                this.mostrarMensaje('Error al cargar áreas', 'error');
+            } finally {
+                this.cargandoAreas = false;
+            }
+        },
+
+        async guardarAreas() {
+            if (!this.usuarioSeleccionado) return;
+
+            this.guardandoAreas = true;
+            try {
+                const response = await fetch(`/api/usuarios/${this.usuarioSeleccionado.id}/areas/sync`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        area_ids: this.areasSeleccionadas
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Error al guardar áreas');
+                }
+
+                this.mostrarModalAreas = false;
+                this.mostrarMensaje('Áreas asignadas correctamente', 'success');
+                await this.cargarUsuarios(); // Recargar para actualizar datos
+            } catch (error) {
+                console.error('Error guardando áreas:', error);
+                this.mostrarMensaje(error.message, 'error');
+            } finally {
+                this.guardandoAreas = false;
+            }
+        },
+
+        cerrarModalAreas() {
+            this.mostrarModalAreas = false;
+            this.usuarioSeleccionado = null;
+            this.areasDisponibles = [];
+            this.areasSeleccionadas = [];
+        },
+
+        async cargarAreasModal(sedeId) {
+            if (!sedeId) {
+                this.areasDisponiblesModal = [];
+                return;
+            }
+
+            this.cargandoAreasModal = true;
+            try {
+                const response = await fetch(`/api/areas?sede_id=${sedeId}`);
+                if (response.ok) {
+                    this.areasDisponiblesModal = await response.json();
+                } else {
+                    this.areasDisponiblesModal = [];
+                }
+            } catch (error) {
+                console.error('Error cargando áreas:', error);
+                this.areasDisponiblesModal = [];
+            } finally {
+                this.cargandoAreasModal = false;
+            }
+        },
+
+        async cargarAreasAsignadasUsuario(userId) {
+            try {
+                const response = await fetch(`/api/usuarios/${userId}/areas`);
+                if (response.ok) {
+                    const areasAsignadas = await response.json();
+                    this.usuarioForm.areas_seleccionadas = areasAsignadas.map(a => a.id);
+                } else {
+                    this.usuarioForm.areas_seleccionadas = [];
+                }
+            } catch (error) {
+                console.error('Error cargando áreas asignadas:', error);
+                this.usuarioForm.areas_seleccionadas = [];
+            }
+        },
+
+        async guardarAreasUsuario(userId) {
+            try {
+                // 🔥 CORRECCIÓN: Asegurar que siempre sea un array, incluso si está vacío
+                const areaIds = Array.isArray(this.usuarioForm.areas_seleccionadas) 
+                    ? this.usuarioForm.areas_seleccionadas 
+                    : [];
+                
+                console.log('💾 Guardando áreas para usuario:', {
+                    userId,
+                    areaIds,
+                    count: areaIds.length
+                });
+                
+                const response = await fetch(`/api/usuarios/${userId}/areas/sync`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        area_ids: areaIds
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    console.error('❌ Error al guardar áreas:', data);
+                    throw new Error(data.error || 'Error al guardar áreas');
+                }
+                
+                console.log('✅ Áreas guardadas correctamente:', data);
+            } catch (error) {
+                console.error('❌ Error guardando áreas:', error);
+                // No lanzar error para no interrumpir el flujo, solo loguear
+                // Pero mostrar mensaje al usuario
+                this.mostrarMensaje('Error al guardar áreas asignadas: ' + error.message, 'error');
+            }
+        },
+
         cerrarModalUsuario() {
             this.mostrarModalUsuario = false;
             this.esEdicionUsuario = false;
+            this.usuarioForm.areas_seleccionadas = [];
+            this.areasDisponiblesModal = [];
         },
 
         mostrarMensaje(mensaje, tipo) {
@@ -600,6 +937,12 @@ export default {
                 showConfirmButton: tipo !== 'success',
                 confirmButtonColor: tipo === 'success' ? '#10b981' : '#ef4444'
             });
+        },
+
+        getNombreSede(sedeId) {
+            if (!sedeId) return 'No asignada';
+            const sede = this.sedes.find(s => s.id == sedeId);
+            return sede ? sede.nombre : 'Cargando...';
         }
     }
 }

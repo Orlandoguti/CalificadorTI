@@ -5,6 +5,8 @@ import App from './components/App.vue';
 // Importar EventBus y Store
 import './event-bus';
 import './stores/sede-store';
+// Importar manejador offline
+import './offline-handler';
 
 
 const app = createApp(App);

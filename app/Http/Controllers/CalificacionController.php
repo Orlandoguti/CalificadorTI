@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Arr;
+use Carbon\Carbon;
 
 class CalificacionController extends Controller
 {
@@ -85,8 +86,24 @@ public function guardarCompleta(Request $request)
             'nivel_calificacion_id' => 'nullable|exists:niveles_calificacion,id', // 🔥 CORRECCIÓN FCR: Opcional, puede ser NULL
             'respuestas' => 'sometimes|array', // 🔥 CORRECCIÓN: Cambiar a 'sometimes' para permitir FCR sin respuestas normales
             'respuestas_subpreguntas' => 'sometimes|array',
-            'respuestas_rangos' => 'sometimes|array'
+            'respuestas_rangos' => 'sometimes|array',
+            // Fecha/hora en que el usuario envió (offline sync); ISO 8601 desde el cliente
+            'registrado_en' => 'nullable|string|max:64',
         ]);
+
+        $fechaRegistroCliente = null;
+        if (! empty($validated['registrado_en'])) {
+            try {
+                $parsed = Carbon::parse($validated['registrado_en']);
+                // Aceptar si no es futuro (margen reloj) y no es ridículamente antiguo
+                if ($parsed->lte(now()->addMinutes(10)) && $parsed->gte(now()->subYears(5))) {
+                    $fechaRegistroCliente = $parsed;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('registrado_en inválido, se usa hora del servidor', ['valor' => $validated['registrado_en']]);
+            }
+        }
+        unset($validated['registrado_en']);
         
         // 🔥 CORRECCIÓN: Inicializar respuestas como array vacío si no está presente
         if (!isset($validated['respuestas'])) {
@@ -192,8 +209,14 @@ public function guardarCompleta(Request $request)
 
         Log::info('Creando calificación con datos:', $calificacionData);
 
-        $calificacion = Calificacion::create($calificacionData);
-        Log::info('Calificación creada ID: ' . $calificacion->id);
+        $calificacion = new Calificacion();
+        $calificacion->forceFill($calificacionData);
+        if ($fechaRegistroCliente) {
+            $calificacion->created_at = $fechaRegistroCliente;
+            $calificacion->updated_at = $fechaRegistroCliente;
+        }
+        $calificacion->save();
+        Log::info('Calificación creada ID: ' . $calificacion->id . ($fechaRegistroCliente ? ' (fecha cliente: ' . $fechaRegistroCliente->toIso8601String() . ')' : ''));
 
         // 1. GUARDAR RESPUESTAS NORMALES (preguntas principales)
         foreach ($validated['respuestas'] as $preguntaId => $respuesta) {

@@ -6,9 +6,6 @@
         </div>
 
         <div class="actions-bar">
-            <button @click="mostrarModalCrear" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Nueva Área
-            </button>
             <div class="search-box">
                 <input 
                     v-model="filtroBusqueda"
@@ -29,7 +26,7 @@
                         <th>Tipos de Calificación</th>
                         <th>Preguntas</th>
                         <th>Estado</th>
-                        <th>Acciones</th>
+                        <!-- Sin columna de acciones - Solo visualización -->
                     </tr>
                 </thead>
                 <tbody>
@@ -50,123 +47,13 @@
                                 {{ area.is_active ? 'Activa' : 'Inactiva' }}
                             </span>
                         </td>
-                        <td class="actions">
-                            <button @click="editarArea(area)" class="btn-icon" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button 
-                                @click="toggleEstadoArea(area)" 
-                                :class="['btn-icon', area.is_active ? 'danger' : 'success']"
-                                :title="area.is_active ? 'Desactivar' : 'Activar'"
-                            >
-                                <i :class="area.is_active ? 'fas fa-ban' : 'fas fa-check'"></i>
-                            </button>
-                        </td>
+                        <!-- Sin acciones - Solo visualización -->
                     </tr>
                 </tbody>
             </table>
         </div>
 
-        <!-- Modal para crear/editar área -->
-        <div v-if="mostrarModal" class="modal-overlay" @click="cerrarModal">
-            <div class="modal-container" @click.stop>
-                <div class="modal-header">
-                    <h3>{{ esEdicion ? 'Editar Área' : 'Crear Nueva Área' }}</h3>
-                    <button @click="cerrarModal" class="btn-close">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                
-                <form @submit.prevent="guardarArea" class="modal-form">
-                    <div class="form-group">
-                        <label>Nombre del Área *</label>
-                        <input 
-                            v-model="areaForm.nombre"
-                            type="text" 
-                            required
-                            placeholder="Ej: Área Académica"
-                        >
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Código *</label>
-                        <input 
-                            v-model="areaForm.codigo"
-                            type="text" 
-                            required
-                            placeholder="Ej: ARCA"
-                            maxlength="10"
-                        >
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Contraseña</label>
-                        <input 
-                            v-model="areaForm.password"
-                            type="password"
-                            placeholder="Dejar vacío para contraseña por defecto"
-                        >
-                        <small>Si se deja vacío, se generará automáticamente</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Sede</label>
-                        <input 
-                            :value="sedeNombre" 
-                            type="text" 
-                            disabled
-                            class="disabled-input"
-                        >
-                        <input 
-                            v-model="areaForm.sede_id" 
-                            type="hidden"
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label>Tipos de Calificación Permitidos</label>
-                        <div style="display: flex; gap: 20px; margin-top: 10px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input 
-                                    v-model="areaForm.permite_csat" 
-                                    type="checkbox"
-                                >
-                                <span>CSAT</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input 
-                                    v-model="areaForm.permite_nps" 
-                                    type="checkbox"
-                                >
-                                <span>NPS</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input 
-                                    v-model="areaForm.permite_fcr" 
-                                    type="checkbox"
-                                >
-                                <span>FCR</span>
-                            </label>
-                        </div>
-                        <small>Selecciona los tipos de calificación permitidos para esta área</small>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="button" @click="cerrarModal" class="btn btn-secondary">
-                            Cancelar
-                        </button>
-                        <button type="submit" :disabled="guardando" class="btn btn-primary">
-                            <span v-if="guardando">
-                                <i class="fas fa-spinner fa-spin"></i> Guardando...
-                            </span>
-                            <span v-else>
-                                {{ esEdicion ? 'Actualizar' : 'Crear' }}
-                            </span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+        <!-- Modal eliminado - Solo visualización para gestor -->
     </div>
 </template>
 

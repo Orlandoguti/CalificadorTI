@@ -26,8 +26,20 @@ export default {
         async checkUserRole() {
             try {
                 const response = await fetch('/api/user', {
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
                 });
+                
+                // Verificar que la respuesta sea JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.log('🔐 Respuesta no es JSON, usuario no autenticado');
+                    this.loading = false;
+                    return;
+                }
                 
                 if (response.ok) {
                     this.user = await response.json();
@@ -39,6 +51,10 @@ export default {
                 }
             } catch (error) {
                 console.error('Error verificando usuario:', error);
+                // Si el error es de parsing JSON, probablemente recibimos HTML
+                if (error.message && error.message.includes('JSON')) {
+                    console.log('🔐 Respuesta no es JSON válido, usuario no autenticado');
+                }
                 this.loading = false;
             }
         },

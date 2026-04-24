@@ -44,4 +44,9 @@ class Calificacion extends Model
     {
         return $this->hasMany(RespuestaCalificacion::class, 'calificacion_id');
     }
+
+    public function respuestasSubpreguntas()
+    {
+        return $this->hasMany(RespuestaSubpregunta::class, 'calificacion_id');
+    }
 }

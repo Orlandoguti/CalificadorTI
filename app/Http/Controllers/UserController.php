@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Sede;
+use App\Models\Area;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
@@ -15,7 +16,7 @@ class UserController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = User::with('sede');
+            $query = User::with('sede', 'areas');
             
             // Filtros
             if ($request->has('role') && $request->role !== '') {
@@ -194,6 +195,91 @@ class UserController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al cambiar rol: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Obtener las áreas asignadas a un usuario
+     */
+    public function getAreasAsignadas(User $user)
+    {
+        try {
+            $areas = $user->areas()->with('sede')->get();
+            return response()->json($areas);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al obtener áreas: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Sincronizar áreas asignadas a un usuario
+     * Solo para gestores, y solo áreas de su sede
+     */
+    public function syncAreas(Request $request, User $user)
+    {
+        try {
+            // Solo permitir para gestores
+            if ($user->role !== 'gestor') {
+                return response()->json([
+                    'error' => 'Solo se pueden asignar áreas a gestores'
+                ], 422);
+            }
+
+            // 🔥 CORRECCIÓN: Validar que area_ids sea un array (puede estar vacío)
+            $validated = $request->validate([
+                'area_ids' => 'required|array',
+                'area_ids.*' => 'exists:areas,id'
+            ]);
+
+            \Log::info('🔄 Sincronizando áreas para usuario:', [
+                'user_id' => $user->id,
+                'area_ids' => $validated['area_ids'],
+                'count' => count($validated['area_ids'])
+            ]);
+
+            // Verificar que todas las áreas pertenezcan a la sede del gestor
+            // 🔥 CORRECCIÓN: Solo validar si hay áreas en el array
+            if ($user->sede_id && !empty($validated['area_ids'])) {
+                $areasInvalidas = Area::whereIn('id', $validated['area_ids'])
+                    ->where('sede_id', '!=', $user->sede_id)
+                    ->pluck('id')
+                    ->toArray();
+
+                if (!empty($areasInvalidas)) {
+                    return response()->json([
+                        'error' => 'Algunas áreas no pertenecen a la sede del gestor'
+                    ], 422);
+                }
+            }
+
+            // 🔥 CORRECCIÓN: Sincronizar áreas (array vacío elimina todas las relaciones)
+            $user->areas()->sync($validated['area_ids']);
+
+            \Log::info('✅ Áreas sincronizadas correctamente:', [
+                'user_id' => $user->id,
+                'areas_count' => $user->areas()->count()
+            ]);
+
+            // Recargar con relaciones
+            $user->load('areas', 'sede');
+
+            return response()->json([
+                'message' => 'Áreas asignadas correctamente',
+                'user' => $user
+            ]);
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('❌ Error de validación en syncAreas:', $e->errors());
+            return response()->json([
+                'error' => 'Error de validación',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('❌ Error en syncAreas:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['error' => 'Error al asignar áreas: ' . $e->getMessage()], 500);
         }
     }
 }

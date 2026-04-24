@@ -35,6 +35,8 @@ Route::get('/tipos-calificacion', [TipoCalificacionController::class, 'index']);
 Route::get('/tipos-calificacion/{id}', [TipoCalificacionController::class, 'show']);
 Route::apiResource('usuarios', UserController::class);
 Route::put('/usuarios/{user}/rol', [UserController::class, 'cambiarRol']);
+Route::get('/usuarios/{user}/areas', [UserController::class, 'getAreasAsignadas']);
+Route::post('/usuarios/{user}/areas/sync', [UserController::class, 'syncAreas']);
 Route::get('/niveles-calificacion', [NivelCalificacionController::class, 'index']);
 Route::get('/preguntas', [PreguntaController::class, 'index']);
 
@@ -101,3 +103,4 @@ Route::delete('/preguntas/{pregunta}', [PreguntaController::class, 'destroy']);
 
 Route::get('/estadisticas/exportar', [ExportacionController::class, 'exportarEstadisticas']);
 Route::get('/estadisticas/exportar-avanzado', [ExportacionController::class, 'exportarEstadisticasAvanzado']);
+Route::get('/calificaciones/exportar', [ExportacionController::class, 'exportarCalificaciones']);

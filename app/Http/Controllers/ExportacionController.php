@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Exports\EstadisticasExport;
+use App\Exports\CalificacionesExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use PDF;
 
 class ExportacionController extends Controller
@@ -86,11 +88,77 @@ class ExportacionController extends Controller
         ];
     }
 
+    /**
+     * Exportar calificaciones a Excel
+     */
+    public function exportarCalificaciones(Request $request)
+    {
+        try {
+            $filtros = [
+                'fecha_inicio' => $request->get('fecha_inicio'),
+                'fecha_fin' => $request->get('fecha_fin'),
+                'area_id' => $request->get('area_id'),
+                'nivel_id' => $request->get('nivel_id'),
+                'sede_id' => $request->get('sede_id'),
+                'tipo_calificacion' => $request->get('tipo_calificacion')
+            ];
+
+            // Si el usuario autenticado es gestor, forzar su sede.
+            // Esto evita exportar datos de otras sedes aunque manipulen el query string.
+            $user = Auth::user();
+            if ($user && $user->role === 'gestor' && !empty($user->sede_id)) {
+                $filtros['sede_id'] = $user->sede_id;
+            }
+
+            $nombreArchivo = $this->generarNombreArchivoCalificaciones($filtros);
+
+            return Excel::download(
+                new CalificacionesExport($filtros),
+                $nombreArchivo,
+                \Maatwebsite\Excel\Excel::XLSX
+            );
+
+        } catch (\Exception $e) {
+            \Log::error('Error en exportación de calificaciones: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'error' => 'Error al generar el reporte: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     private function generarNombreArchivo($filtros, $extension)
     {
         $sede = isset($filtros['sede_id']) ? '_Sede_' . $filtros['sede_id'] : '';
         $fecha = now()->format('Y-m-d');
         
         return "Reporte_Estadisticas{$sede}_{$fecha}.{$extension}";
+    }
+
+    private function generarNombreArchivoCalificaciones($filtros)
+    {
+        $partes = ['Calificaciones'];
+        
+        if (!empty($filtros['sede_id'])) {
+            $partes[] = 'Sede_' . $filtros['sede_id'];
+        }
+        
+        if (!empty($filtros['area_id'])) {
+            $partes[] = 'Area_' . $filtros['area_id'];
+        }
+        
+        if (!empty($filtros['tipo_calificacion'])) {
+            $partes[] = strtoupper($filtros['tipo_calificacion']);
+        }
+        
+        if (!empty($filtros['fecha_inicio']) && !empty($filtros['fecha_fin'])) {
+            $fechaInicio = date('Y-m-d', strtotime($filtros['fecha_inicio']));
+            $fechaFin = date('Y-m-d', strtotime($filtros['fecha_fin']));
+            $partes[] = $fechaInicio . '_' . $fechaFin;
+        } else {
+            $partes[] = now()->format('Y-m-d');
+        }
+        
+        return implode('_', $partes) . '.xlsx';
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Area;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Calificacion;
 
 class AreaController extends Controller
@@ -61,6 +62,7 @@ public function indexPublic(Request $request)
     public function index(Request $request)
     {
         try {
+            $user = Auth::user();
             $sedeId = $request->get('sede_id');
             
             Log::info("🔍 Solicitando áreas para sede_id: " . $sedeId);
@@ -69,12 +71,35 @@ public function indexPublic(Request $request)
                 ->with('sede')
                 ->where('is_active', true);
 
-            // ✅ FILTRAR POR SEDE SI SE PROPORCIONA
-            if ($sedeId && $sedeId !== 'todas') {
-                Log::info("🔍 FILTRANDO áreas por sede_id: " . $sedeId);
-                $query->where('sede_id', $sedeId);
+            // Si el usuario es gestor, aplicar filtros especiales
+            if ($user && $user->role === 'gestor') {
+                // Usar la sede del gestor si no se proporciona una
+                if (!$sedeId || $sedeId === 'todas') {
+                    $sedeId = $user->sede_id;
+                }
+                
+                // Verificar que el gestor solo vea áreas de su sede
+                if ($sedeId && $sedeId !== 'todas') {
+                    $query->where('sede_id', $sedeId);
+                }
+                
+                // Si el gestor tiene áreas asignadas específicamente, filtrar por esas
+                $areasAsignadas = $user->areas()->pluck('areas.id')->toArray();
+                if (!empty($areasAsignadas)) {
+                    $query->whereIn('id', $areasAsignadas);
+                    Log::info("🔍 Gestor con áreas asignadas: " . count($areasAsignadas) . " áreas");
+                } else {
+                    Log::info("🔍 Gestor sin áreas asignadas - mostrando todas las áreas de su sede");
+                }
             } else {
-                Log::info("🔍 Mostrando TODAS las áreas (sin filtro de sede)");
+                // Para admin y otros roles, comportamiento normal
+                // ✅ FILTRAR POR SEDE SI SE PROPORCIONA
+                if ($sedeId && $sedeId !== 'todas') {
+                    Log::info("🔍 FILTRANDO áreas por sede_id: " . $sedeId);
+                    $query->where('sede_id', $sedeId);
+                } else {
+                    Log::info("🔍 Mostrando TODAS las áreas (sin filtro de sede)");
+                }
             }
 
             $areas = $query->get();

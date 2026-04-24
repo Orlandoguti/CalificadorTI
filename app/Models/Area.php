@@ -45,4 +45,11 @@ class Area extends Model
     {
         return $this->belongsTo(Sede::class);
     }
+
+    // Relación many-to-many con usuarios (gestores asignados a esta área)
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'area_user')
+                    ->withTimestamps();
+    }
 }

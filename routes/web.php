@@ -72,8 +72,8 @@ Route::middleware(['auth'])->group(function () {
             return response()->json(['error' => 'No autenticado'], 401);
         }
         
-        // 🔥 CORRECIÓN: Cargar la relación sede y devolver los datos
-        $user = \App\Models\User::with('sede')->find($user->id);
+        // 🔥 CORRECIÓN: Cargar la relación sede y áreas, devolver los datos
+        $user = \App\Models\User::with('sede', 'areas')->find($user->id);
         
         return response()->json([
             'id' => $user->id,
@@ -83,6 +83,7 @@ Route::middleware(['auth'])->group(function () {
             'role' => $user->role,
             'sede_id' => $user->sede_id,
             'sede' => $user->sede, // Incluir la relación cargada
+            'areas' => $user->areas, // Incluir áreas asignadas
             'email_verified_at' => $user->email_verified_at,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at
@@ -103,6 +104,10 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/preguntas/{pregunta}', [PreguntaController::class, 'update']);
         Route::delete('/preguntas/{pregunta}', [PreguntaController::class, 'destroy']);
         Route::put('/preguntas/{pregunta}/toggle', [PreguntaController::class, 'toggleStatus']);
+
+        // Gestión de áreas asignadas a usuarios (solo para admin)
+        Route::get('/usuarios/{user}/areas', [UserController::class, 'getAreasAsignadas']);
+        Route::post('/usuarios/{user}/areas/sync', [UserController::class, 'syncAreas']);
 
         // Estadísticas del Dashboard Admin
         Route::get('/admin/stats', [AdminController::class, 'getStats']);

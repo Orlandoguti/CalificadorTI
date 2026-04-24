@@ -1,7 +1,45 @@
 <template>
     <div class="calificador-container">
+        <!-- 🔥 NUEVO: Pantalla de carga con barra de progreso -->
+        <div v-if="cargandoCalificador" class="loading-calificador-overlay">
+            <div class="loading-calificador-content">
+                <div class="loading-calificador-icon">
+                    <i class="fas fa-clipboard-check"></i>
+                </div>
+                <h2 class="loading-calificador-title">Cargando Calificador</h2>
+                <p class="loading-calificador-subtitle">{{ mensajeCarga }}</p>
+                
+                <!-- Barra de progreso -->
+                <div class="progress-bar-container">
+                    <div class="progress-bar-background">
+                        <div class="progress-bar-fill" :style="{ width: progresoCarga + '%' }"></div>
+                    </div>
+                    <div class="progress-bar-text">{{ Math.round(progresoCarga) }}%</div>
+                </div>
+                
+                <!-- Detalles de carga -->
+                <div class="loading-details">
+                    <div class="loading-detail-item" v-if="detallesCarga.niveles > 0">
+                        <i class="fas fa-check-circle" v-if="detallesCarga.nivelesCargados >= detallesCarga.niveles"></i>
+                        <i class="fas fa-spinner fa-spin" v-else></i>
+                        <span>Niveles: {{ detallesCarga.nivelesCargados }}/{{ detallesCarga.niveles }}</span>
+                    </div>
+                    <div class="loading-detail-item" v-if="detallesCarga.preguntas > 0">
+                        <i class="fas fa-check-circle" v-if="detallesCarga.preguntasCargadas >= detallesCarga.preguntas"></i>
+                        <i class="fas fa-spinner fa-spin" v-else></i>
+                        <span>Preguntas: {{ detallesCarga.preguntasCargadas }}/{{ detallesCarga.preguntas }}</span>
+                    </div>
+                    <div class="loading-detail-item" v-if="detallesCarga.subpreguntas > 0">
+                        <i class="fas fa-check-circle" v-if="detallesCarga.subpreguntasCargadas >= detallesCarga.subpreguntas"></i>
+                        <i class="fas fa-spinner fa-spin" v-else></i>
+                        <span>Subpreguntas: {{ detallesCarga.subpreguntasCargadas }}/{{ detallesCarga.subpreguntas }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Loading mientras carga datos -->
-        <div v-if="cargandoDatos" class="loading-container">
+        <div v-else-if="cargandoDatos" class="loading-container">
             <div class="spinner-large"></div>
             <p>Cargando información...</p>
         </div>
@@ -43,40 +81,10 @@
                     </div>
                 </div>
                 
-                <!-- 🔥 NUEVO: Indicadores alternativos si no tiene CSAT -->
+                <!-- 🔥 NUEVO: Indicadores alternativos si no tiene CSAT (sin NPS) -->
                 <div v-else class="indicadores-alt-wrapper">
-                    <div v-if="areaSeleccionada.permite_nps" class="indicador-nps-wrapper">
-                        <h3>{{ preguntaNPS ? preguntaNPS.pregunta : 'Califica tu experiencia' }}</h3>
-                        <div class="indicador-simple-container">
-                            <div class="indicador-header">
-                                <div class="indicador-labels">
-                                    <span class="indicador-min">0</span>
-                                    <span class="indicador-value">{{ respuestaIndicadorNPS }}</span>
-                                    <span class="indicador-max">10</span>
-                                </div>
-                            </div>
-                            
-                            <div class="indicador-track" @mousedown="iniciarArrastreNPS" @touchstart="iniciarArrastreNPS" @click="clickIndicadorNPS">
-                                <div class="indicador-progress" :style="{ width: (respuestaIndicadorNPS / 10 * 100) + '%' }"></div>
-                                <div class="indicador-thumb" 
-                                     :style="{ left: (respuestaIndicadorNPS / 10 * 100) + '%' }">
-                                    <div class="thumb-circle"></div>
-                                </div>
-                            </div>
-                            
-                            <div class="indicador-ticks">
-                                <span v-for="n in 11" :key="n" class="tick" :class="{ active: respuestaIndicadorNPS >= n-1 }" @click="seleccionarValorNPS(n-1)">
-                                    {{ n-1 }}
-                                </span>
-                            </div>
-                        </div>
-                        <button @click="iniciarConNPS" class="btn-continuar-nps">
-                            Evaluar
-                        </button>
-                    </div>
-
                     <!-- 🔥 NUEVO: Para áreas con solo FCR, mostrar manitas con la pregunta FCR -->
-                    <div v-if="!areaSeleccionada.permite_csat && !areaSeleccionada.permite_nps && areaSeleccionada.permite_fcr" class="indicador-fcr-wrapper">
+                    <div v-if="!areaSeleccionada.permite_csat && areaSeleccionada.permite_fcr" class="indicador-fcr-wrapper">
                         <div v-if="cargandoPreguntaFCR" style="text-align: center; padding: 2rem;">
                             <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #666;"></i>
                             <p>Cargando pregunta...</p>
@@ -89,7 +97,7 @@
                                 <div v-for="opcion in preguntaFCRPrincipal.opciones" 
                                      :key="opcion.id" 
                                      class="fcr-option" 
-                                     @click="iniciarConFCR(opcion.opcion === 'Sí', opcion)">
+                                     @click="iniciarConFCR(opcion.opcion === 'Sí', opcion, $event)">
                                     <div class="fcr-icon" :class="opcion.opcion === 'Sí' ? 'bien' : 'mal'">
                                         <i :class="opcion.opcion === 'Sí' ? 'fas fa-thumbs-up' : 'fas fa-thumbs-down'"></i>
                                     </div>
@@ -130,7 +138,7 @@
             </span>
         </div>
     
-    <!-- 🔥 NUEVO: Indicador 0-10 (para preguntas NPS en el modal) -->
+    <!-- Indicador 0-10 (modal) -->
         <div v-if="preguntaActualData.tipo === 'indicador_0_10'" class="indicador-container">
             <div class="indicador-header">
                 <div class="indicador-labels">
@@ -379,7 +387,7 @@
                                 <i class="fas fa-arrow-left"></i> Subpregunta Anterior
                             </button>
                             
-                            <!-- 🔥 CORRECCIÓN: No permitir volver si la primera pregunta es un indicador NPS -->
+                            <!-- No permitir volver si la primera pregunta es un indicador 0-10 -->
                             <button v-else-if="preguntaActual > 0 && !(preguntaActual === 1 && preguntas[0] && preguntas[0].tipo === 'indicador_0_10')" 
                                     @click="preguntaAnterior" 
                                     class="btn btn-secondary">
@@ -454,7 +462,6 @@ export default {
             sedeNombre: '',
             cargandoDatos: true,
             todasLasPreguntas: [], // 🔥 NUEVO: Para almacenar todas las preguntas
-            preguntaNPS: null, // 🔥 NUEVO: Pregunta NPS para mostrar en el título inicial
             preguntaFCRPrincipal: null, // 🔥 NUEVO: Pregunta FCR principal desde BD
             cargandoPreguntaFCR: false, // 🔥 NUEVO: Estado de carga de pregunta FCR
             
@@ -476,19 +483,18 @@ export default {
             // Temporizador cierre automático
             tiempoRestante: 5,
             intervalo: null,
+            cerrandoAgradecimientoEnCurso: false,
             
             // Timeout para cerrar modal si no hay interacción
             timeoutInactividad: null,
-            tiempoInactividad: 200000, // 15000 segundos sin interacción
+            // Milisegundos sin interacción antes de cerrar el modal (ej.: 15*1000 = 15 s, 60*1000 = 1 min)
+            tiempoInactividad: 45 * 1000,
 
             // Datos para indicador 0-10
             respuestaIndicadorValor: 5, // Valor por defecto
             arrastrando: false,
-            trackNPS: null, // 🔥 NUEVO: Referencia al track de NPS en vista única
-            trackModal: null, // 🔥 NUEVO: Referencia al track de NPS en el modal
+            trackModal: null, // Referencia al track del indicador 0-10 en el modal
             
-            // 🔥 NUEVO: Variables para NPS y FCR
-            respuestaIndicadorNPS: 5, // Valor por defecto para NPS inicial
             respuestaFCR: null, // null, true (bien) o false (mal)
          
              // 🔥 NUEVO: Estados mejorados para subpreguntas
@@ -504,12 +510,27 @@ export default {
         respuestaUnica: null, // AGREGAR ESTA LÍNEA
         
         // 🔥 NUEVO: Variables para flujo secuencial de tipos de calificación
-        tiposCalificacionSecuencia: [], // Array con el orden de tipos a procesar ['csat', 'nps', 'fcr']
-        tipoCalificacionActual: null, // Tipo actual que se está procesando ('csat', 'nps', 'fcr')
+        tiposCalificacionSecuencia: [], // Orden de tipos: 'csat', 'fcr' (NPS deshabilitado)
+        tipoCalificacionActual: null, // 'csat' | 'fcr'
         indiceTipoActual: 0, // Índice del tipo actual en la secuencia
         respuestasAcumuladas: {}, // Acumular todas las respuestas de todos los tipos
         respuestasSubpreguntasAcumuladas: [], // Acumular subpreguntas de todos los tipos
-        respuestasRangosAcumuladas: [] // Acumular rangos de todos los tipos
+        respuestasRangosAcumuladas: [], // Acumular rangos de todos los tipos
+        intentosPrecarga: 0, // Contador de intentos de precarga
+        sincronizando: false, // Estado de sincronización
+        
+        // 🔥 NUEVO: Estados para carga inicial con progreso
+        cargandoCalificador: false, // Mostrar pantalla de carga del calificador
+        progresoCarga: 0, // Progreso de carga (0-100)
+        mensajeCarga: 'Preparando calificador...', // Mensaje de estado
+        detallesCarga: {
+            niveles: 0,
+            nivelesCargados: 0,
+            preguntas: 0,
+            preguntasCargadas: 0,
+            subpreguntas: 0,
+            subpreguntasCargadas: 0
+        }
         }
     },
     computed: {
@@ -687,29 +708,67 @@ respuestaUnica: {
             if (nuevoValor) {
                 // Modal abierto, iniciar timeout de inactividad después de que Vue actualice el DOM
                 this.$nextTick(() => {
-                    console.log('⏱️ Modal abierto, iniciando timeout de inactividad de 15000 segundos...');
+                    console.log('⏱️ Modal abierto, iniciando timeout de inactividad:', this.tiempoInactividad, 'ms');
                     this.iniciarTimeoutInactividad();
                 });
             } else {
                 // Modal cerrado, limpiar timeout
                 this.limpiarTimeoutInactividad();
             }
+        },
+        /**
+         * Al terminar una carga dentro del modal, volver a arrancar el conteo (sin bucle infinito).
+         * Solo reprogramar en el callback cuando `cargando` evita perder el timer si la carga dura más que tiempoInactividad.
+         */
+        cargando(nuevo) {
+            if (nuevo === false && this.mostrarCuestionario) {
+                this.$nextTick(() => this.iniciarTimeoutInactividad());
+            }
         }
     },
     async mounted() {
-        this.cargarNiveles();
-    // Verificar si hay área seleccionada en localStorage
-    const areaGuardada = localStorage.getItem('area_seleccionada');
-    const sedeGuardada = localStorage.getItem('sede_seleccionada');
-    
-    if (!areaGuardada || !sedeGuardada) {
-        // Si no hay datos, redirigir a áreas
-        this.$router.push('/areas');
-        return;
-    }
-    
-    await this.cargarDatosIniciales();
-    this.debugFlujoPreguntas();
+        // 🔥 BLOQUEO DE ZOOM: Prevenir zoom con gestos de pellizco
+        this.prevenirZoom();
+        
+        // 🔥 NUEVO: Mostrar pantalla de carga del calificador
+        this.cargandoCalificador = true;
+        this.progresoCarga = 0;
+        this.mensajeCarga = 'Iniciando calificador...';
+        
+        // Cargar niveles primero
+        this.progresoCarga = 5;
+        this.mensajeCarga = 'Cargando niveles...';
+        await this.cargarNiveles();
+        
+        // Verificar si hay área seleccionada en localStorage
+        const areaGuardada = localStorage.getItem('area_seleccionada');
+        const sedeGuardada = localStorage.getItem('sede_seleccionada');
+        
+        if (!areaGuardada || !sedeGuardada) {
+            // Si no hay datos, redirigir a áreas
+            this.cargandoCalificador = false;
+            this.$router.push('/areas');
+            return;
+        }
+        
+        // Cargar datos iniciales
+        this.progresoCarga = 10;
+        this.mensajeCarga = 'Cargando datos iniciales...';
+        await this.cargarDatosIniciales();
+        
+        // 🔥 NUEVO: Cargar todas las preguntas desde caché local
+        await this.cargarPreguntasDesdeCache();
+        
+        // Finalizar carga
+        this.progresoCarga = 100;
+        this.mensajeCarga = '¡Listo!';
+        await new Promise(resolve => setTimeout(resolve, 500)); // Esperar medio segundo para mostrar 100%
+        this.cargandoCalificador = false;
+        
+        this.debugFlujoPreguntas();
+        
+        // 🔥 NUEVO: Escuchar eventos de sincronización
+        this.configurarEventosSincronizacion();
 },
     beforeUnmount() {
         // Limpiar intervalo al destruir el componente
@@ -718,8 +777,188 @@ respuestaUnica: {
         }
         // Limpiar timeout de inactividad
         this.limpiarTimeoutInactividad();
+        // Limpiar eventos de zoom
+        this.limpiarPrevencionZoom();
     },
     methods: {
+        /**
+         * 🔥 BLOQUEO DE ZOOM: Prevenir zoom con gestos de pellizco y doble toque
+         */
+        prevenirZoom() {
+            // Prevenir zoom con gestos de pellizco
+            let lastTouchEnd = 0;
+            const preventZoom = (e) => {
+                const now = Date.now();
+                if (now - lastTouchEnd <= 300) {
+                    e.preventDefault();
+                }
+                lastTouchEnd = now;
+            };
+
+            // Prevenir zoom con doble toque
+            const preventDoubleTapZoom = (e) => {
+                if (e.touches.length > 1) {
+                    e.preventDefault();
+                }
+            };
+
+            // Prevenir zoom con rueda del mouse (Ctrl + Scroll)
+            const preventWheelZoom = (e) => {
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                }
+            };
+
+            // Agregar event listeners
+            document.addEventListener('touchend', preventZoom, { passive: false });
+            document.addEventListener('touchstart', preventDoubleTapZoom, { passive: false });
+            document.addEventListener('wheel', preventWheelZoom, { passive: false });
+            document.addEventListener('gesturestart', (e) => e.preventDefault());
+            document.addEventListener('gesturechange', (e) => e.preventDefault());
+            document.addEventListener('gestureend', (e) => e.preventDefault());
+
+            // Guardar referencias para poder limpiarlas después
+            this._zoomPreventionHandlers = {
+                touchend: preventZoom,
+                touchstart: preventDoubleTapZoom,
+                wheel: preventWheelZoom
+            };
+        },
+
+        /**
+         * 🔥 BLOQUEO DE ZOOM: Limpiar eventos de prevención de zoom
+         */
+        limpiarPrevencionZoom() {
+            if (this._zoomPreventionHandlers) {
+                document.removeEventListener('touchend', this._zoomPreventionHandlers.touchend);
+                document.removeEventListener('touchstart', this._zoomPreventionHandlers.touchstart);
+                document.removeEventListener('wheel', this._zoomPreventionHandlers.wheel);
+                this._zoomPreventionHandlers = null;
+            }
+        },
+        /**
+         * 🔥 NUEVO: Cargar todas las preguntas desde caché local con barra de progreso
+         */
+        async cargarPreguntasDesdeCache() {
+            try {
+                if (!this.areaSeleccionada || !this.nivelesCalificacion || this.nivelesCalificacion.length === 0) {
+                    console.log('⚠️ No se pueden cargar preguntas: faltan datos necesarios');
+                    return;
+                }
+
+                const sedeGuardada = localStorage.getItem('sede_seleccionada');
+                let sedeId = null;
+                
+                if (this.areaSeleccionada.sede_id) {
+                    sedeId = this.areaSeleccionada.sede_id;
+                } else if (sedeGuardada) {
+                    try {
+                        const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
+                        if (sedeResponse.ok) {
+                            const sedeData = await sedeResponse.json();
+                            sedeId = sedeData.id;
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ No se pudo obtener sede_id:', error);
+                    }
+                }
+
+                // Inicializar contadores
+                this.detallesCarga.niveles = this.nivelesCalificacion.length + 1; // +1 para FCR
+                this.detallesCarga.nivelesCargados = 0;
+                this.detallesCarga.preguntas = 0;
+                this.detallesCarga.preguntasCargadas = 0;
+                this.detallesCarga.subpreguntas = 0;
+                this.detallesCarga.subpreguntasCargadas = 0;
+
+                this.progresoCarga = 20;
+                this.mensajeCarga = 'Cargando preguntas CSAT...';
+
+                // Cargar preguntas de cada nivel desde caché
+                let totalPreguntas = 0;
+
+                for (let i = 0; i < this.nivelesCalificacion.length; i++) {
+                    const nivel = this.nivelesCalificacion[i];
+                    const cacheKey = `preguntas_${this.areaSeleccionada.id}_${nivel.id}_${sedeId || 'sin_sede'}`;
+                    const precached = localStorage.getItem(`precache_${cacheKey}`);
+                    
+                    if (precached) {
+                        const cacheData = JSON.parse(precached);
+                        const preguntas = cacheData.data || [];
+                        totalPreguntas += preguntas.length;
+                        
+                        // Contar subpreguntas
+                        for (const pregunta of preguntas) {
+                            if (pregunta.opciones && Array.isArray(pregunta.opciones)) {
+                                for (const opcion of pregunta.opciones) {
+                                    if (opcion.tiene_subpreguntas && opcion.id) {
+                                        const subpreguntasCache = localStorage.getItem(`precache_subpreguntas_${opcion.id}`);
+                                        if (subpreguntasCache) {
+                                            const subpreguntasData = JSON.parse(subpreguntasCache);
+                                            this.detallesCarga.subpreguntas += (subpreguntasData.data || []).length;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    this.detallesCarga.nivelesCargados++;
+                    this.progresoCarga = 20 + (this.detallesCarga.nivelesCargados / this.detallesCarga.niveles) * 40;
+                    this.mensajeCarga = `Cargando nivel ${nivel.nombre}...`;
+                    await new Promise(resolve => setTimeout(resolve, 100)); // Pequeña pausa para mostrar progreso
+                }
+
+                // Cargar FCR
+                this.mensajeCarga = 'Cargando preguntas FCR...';
+                const fcrCacheKey = `preguntas_fcr_todas_${this.areaSeleccionada.id}_${sedeId || 'sin_sede'}`;
+                const fcrPrecached = localStorage.getItem(`precache_${fcrCacheKey}`);
+                
+                if (fcrPrecached) {
+                    const fcrCacheData = JSON.parse(fcrPrecached);
+                    const fcrPreguntas = fcrCacheData.data || [];
+                    const preguntaFCR = fcrPreguntas.find(p => p.tipo_pregunta === 'fcr' && p.is_active);
+                    
+                    if (preguntaFCR) {
+                        totalPreguntas += 1;
+                        // Contar subpreguntas de FCR
+                        if (preguntaFCR.opciones && Array.isArray(preguntaFCR.opciones)) {
+                            for (const opcion of preguntaFCR.opciones) {
+                                if (opcion.tiene_subpreguntas && opcion.id) {
+                                    const subpreguntasCache = localStorage.getItem(`precache_subpreguntas_${opcion.id}`);
+                                    if (subpreguntasCache) {
+                                        const subpreguntasData = JSON.parse(subpreguntasCache);
+                                        this.detallesCarga.subpreguntas += (subpreguntasData.data || []).length;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                this.detallesCarga.nivelesCargados = this.detallesCarga.niveles;
+                this.detallesCarga.preguntas = totalPreguntas;
+                this.detallesCarga.preguntasCargadas = totalPreguntas;
+                this.detallesCarga.subpreguntasCargadas = this.detallesCarga.subpreguntas;
+                
+                this.progresoCarga = 80;
+                this.mensajeCarga = 'Verificando subpreguntas...';
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                this.progresoCarga = 95;
+                this.mensajeCarga = 'Finalizando carga...';
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                console.log('✅ Preguntas cargadas desde caché:', {
+                    niveles: this.detallesCarga.nivelesCargados,
+                    preguntas: this.detallesCarga.preguntasCargadas,
+                    subpreguntas: this.detallesCarga.subpreguntasCargadas
+                });
+            } catch (error) {
+                console.error('❌ Error cargando preguntas desde caché:', error);
+                this.mensajeCarga = 'Error al cargar. Continuando...';
+            }
+        },
 
         async cargarNiveles() {
             try {
@@ -752,9 +991,6 @@ respuestaUnica: {
             if (this.areaSeleccionada?.permite_csat) {
                 tipos.push('csat');
             }
-            if (this.areaSeleccionada?.permite_nps) {
-                tipos.push('nps');
-            }
             if (this.areaSeleccionada?.permite_fcr) {
                 tipos.push('fcr');
             }
@@ -773,7 +1009,6 @@ respuestaUnica: {
                 cantidad: this.tiposCalificacionSecuencia.length,
                 tipoInicial: this.tipoCalificacionActual,
                 permite_csat: this.areaSeleccionada?.permite_csat,
-                permite_nps: this.areaSeleccionada?.permite_nps,
                 permite_fcr: this.areaSeleccionada?.permite_fcr
             });
         },
@@ -841,25 +1076,33 @@ respuestaUnica: {
 
                 console.log('📤 Guardando calificación tipo individual:', this.tipoCalificacionActual, calificacionData);
 
-                const response = await fetch('/api/calificaciones/completa', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify(calificacionData)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                // 🔥 NUEVO: Usar función helper con soporte offline
+                const result = await this.enviarCalificacionConOffline('/api/calificaciones/completa', calificacionData);
+                
+                if (result && result.offline) {
+                    console.log('📦 Calificación guardada offline, se sincronizará cuando haya conexión');
+                    return { offline: true, success: true };
                 }
-
-                const result = await response.json();
+                
                 console.log('✅ Calificación tipo individual guardada exitosamente:', this.tipoCalificacionActual, result);
                 return result;
 
             } catch (error) {
                 console.error('❌ Error guardando calificación tipo individual:', error);
+                // Si está offline, intentar guardar en cola
+                if (!navigator.onLine && window.offlineHandler) {
+                    const payload = this.payloadCalificacionParaOffline(calificacionData);
+                    window.offlineHandler.addToSyncQueue(
+                        '/api/calificaciones/completa',
+                        'POST',
+                        payload,
+                        {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                        }
+                    );
+                    return { offline: true, success: true };
+                }
                 // No mostrar error al usuario, solo loguear para no interrumpir el flujo
                 return null;
             }
@@ -920,19 +1163,12 @@ respuestaUnica: {
             // Esto asegura que no haya valores residuales que interfieran
             this.limpiarRespuestasParaNuevaCalificacion();
             
-            // Intentar entrar a pantalla completa al iniciar un tipo
-            this.solicitarPantallaCompleta();
-            
             if (tipo === 'csat') {
                 // Para CSAT, continuar con el flujo normal de iniciarCuestionario
                 // pero sin reiniciar todo, solo cargar las preguntas
                 console.log('📋 Iniciando CSAT desde secuencia...');
                 // El flujo normal de iniciarCuestionario continuará después
                 // No hacer return aquí, dejar que continúe
-            } else if (tipo === 'nps') {
-                // Iniciar NPS
-                await this.iniciarConNPS();
-                return;
             } else if (tipo === 'fcr') {
                 // 🔥 CORRECCIÓN: Cargar pregunta FCR y mostrarla en el modal como pregunta normal
                 if (!this.preguntaFCRPrincipal) {
@@ -1016,20 +1252,14 @@ respuestaUnica: {
 
                 console.log('📤 Guardando calificación completa secuencial:', JSON.stringify(calificacionData, null, 2));
 
-                const response = await fetch('/api/calificaciones/completa', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify(calificacionData)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                // 🔥 NUEVO: Usar función helper con soporte offline
+                const result = await this.enviarCalificacionConOffline('/api/calificaciones/completa', calificacionData);
+                
+                if (result && result.offline) {
+                    console.log('📦 Calificación guardada offline, se sincronizará cuando haya conexión');
+                    return;
                 }
-
-                const result = await response.json();
+                
                 console.log('✅ Calificación secuencial guardada exitosamente:', result);
                 
             } catch (error) {
@@ -1061,14 +1291,13 @@ respuestaUnica: {
                             this.areaSeleccionada = areaActualizada;
                             console.log('📋 Área actualizada desde API:', this.areaSeleccionada);
                             console.log('✅ Permite CSAT:', this.areaSeleccionada.permite_csat);
-                            console.log('✅ Permite NPS:', this.areaSeleccionada.permite_nps);
                             console.log('✅ Permite FCR:', this.areaSeleccionada.permite_fcr);
                             
                             // 🔥 NUEVO: Determinar secuencia de tipos de calificación
                             this.determinarSecuenciaTipos();
                             
                             // Debug específico para FCR
-                            if (!this.areaSeleccionada.permite_csat && !this.areaSeleccionada.permite_nps && this.areaSeleccionada.permite_fcr) {
+                            if (!this.areaSeleccionada.permite_csat && this.areaSeleccionada.permite_fcr) {
                                 console.log('🔧 MODO FCR ACTIVADO');
                                 // Cargar pregunta FCR desde BD
                                 await this.cargarPreguntaFCR();
@@ -1089,10 +1318,8 @@ respuestaUnica: {
                     return;
                 }
 
-                // 🔥 NUEVO: Cargar pregunta NPS si el área la tiene habilitada
-                if (this.areaSeleccionada.permite_nps) {
-                    await this.cargarPreguntaNPS();
-                }
+                // 🔥 NUEVO: Precargar todas las preguntas en segundo plano para mejorar rendimiento
+                this.precargarTodasLasPreguntas();
 
             } catch (error) {
                 console.error('Error cargando datos iniciales:', error);
@@ -1101,41 +1328,7 @@ respuestaUnica: {
             }
         },
 
-        // 🔥 NUEVO: Cargar pregunta NPS
-        async cargarPreguntaNPS() {
-            try {
-                const sedeGuardada = localStorage.getItem('sede_seleccionada');
-                let sedeId = null;
-                
-                if (this.areaSeleccionada.sede_id) {
-                    sedeId = this.areaSeleccionada.sede_id;
-                } else if (sedeGuardada) {
-                    const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
-                    if (sedeResponse.ok) {
-                        const sedeData = await sedeResponse.json();
-                        sedeId = sedeData.id;
-                    }
-                }
-
-                let url = `/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=1`;
-                if (sedeId) {
-                    url += `&sede_id=${sedeId}`;
-                }
-
-                const response = await fetch(url);
-                if (response.ok) {
-                    const preguntas = await response.json();
-                    // Buscar la pregunta NPS
-                    this.preguntaNPS = preguntas.find(p => p.tipo_pregunta === 'nps' && p.tipo === 'indicador_0_10');
-                    console.log('📝 Pregunta NPS cargada:', this.preguntaNPS);
-                }
-            } catch (error) {
-                console.error('Error cargando pregunta NPS:', error);
-            }
-        },
-
         async iniciarCuestionario(nivel) {
-    this.solicitarPantallaCompleta();
             this.nivelSeleccionado = nivel;
             this.cargando = true;
             
@@ -1152,7 +1345,7 @@ respuestaUnica: {
                     this.limpiarRespuestasParaNuevaCalificacion();
                     console.log('📋 CSAT: Continuando con flujo normal de carga de preguntas...');
                 } else {
-                    // Para NPS o FCR, usar iniciarTipoCalificacion que maneja todo
+                    // Para FCR, usar iniciarTipoCalificacion
                     await this.iniciarTipoCalificacion(this.tipoCalificacionActual);
                     return;
                 }
@@ -1184,10 +1377,12 @@ respuestaUnica: {
                 }
 
                 console.log('🔍 Solicitando preguntas con URL:', url);
-                const response = await fetch(url);
                 
-                if (response.ok) {
-                    const todasLasPreguntas = await response.json();
+                // 🔥 NUEVO: Usar función helper con soporte offline
+                const cacheKey = `preguntas_${this.areaSeleccionada.id}_${nivel.id}_${sedeId || 'sin_sede'}`;
+                const todasLasPreguntas = await this.cargarDatosConOffline(url, cacheKey);
+                
+                if (todasLasPreguntas) {
                     
                     // 🔥 CORRECIÓN: Filtrar solo preguntas raíces para comenzar, excluyendo otros tipos de calificación
                     this.preguntas = todasLasPreguntas.filter(pregunta => {
@@ -1205,10 +1400,6 @@ respuestaUnica: {
                             // También incluir preguntas del nivel específico
                             const esDelNivel = pregunta.niveles_calificacion_id == nivel.id;
                             return esRaiz && esDelTipoCorrecto && esDelNivel;
-                        } else if (this.tipoCalificacionActual === 'nps') {
-                            // En NPS: solo preguntas NPS
-                            esDelTipoCorrecto = pregunta.tipo_pregunta === 'nps';
-                            return esRaiz && esDelTipoCorrecto;
                         } else if (this.tipoCalificacionActual === 'fcr') {
                             // En FCR: solo preguntas FCR
                             esDelTipoCorrecto = pregunta.tipo_pregunta === 'fcr';
@@ -1244,11 +1435,7 @@ respuestaUnica: {
                         
                         this.mostrarCuestionario = true;
                         this.preguntaActual = 0;
-                        // 🔥 CORRECCIÓN: Solo resetear si no es NPS y el valor ya no está configurado
-                        if (this.nivelSeleccionado?.nombre !== 'NPS') {
-                            this.respuestaIndicadorValor = 5;
-                            this.respuestaIndicadorNPS = 5;
-                        }
+                        this.respuestaIndicadorValor = 5;
                         this.respuestaFCR = null;
                         this.subpreguntas = [];
                         this.preguntaRangoActual = null;
@@ -1398,23 +1585,13 @@ validarRespuestaSubpregunta(subpregunta, respuesta) {
                 // Guardar la respuesta del indicador antes de eliminar la pregunta
                 const preguntaIndicadorId = this.preguntaActualData.id;
                 
-                // 🔥 CORRECCIÓN: Si es NPS y viene de la barra inicial, ya se eliminó la pregunta en iniciarConNPS
-                // Para otros casos (CSAT, FCR, o NPS en flujo secuencial), eliminar la pregunta del indicador
-                // antes de cargar la pregunta de rango para que no se muestre dos veces
-                const esNPSDesdeBarra = this.tipoCalificacionActual === 'nps' && 
-                                       this.respuestaIndicadorNPS !== null && 
-                                       this.respuestas[preguntaIndicadorId]?.valor === this.respuestaIndicadorNPS;
-                
-                if (!esNPSDesdeBarra) {
-                    // Eliminar la pregunta del indicador del array antes de cargar la pregunta de rango
-                    const indicadorIndex = this.preguntas.findIndex(p => p.id === preguntaIndicadorId);
-                    if (indicadorIndex !== -1) {
-                        this.preguntas.splice(indicadorIndex, 1);
-                        console.log('🗑️ Pregunta indicador eliminada del flujo antes de cargar pregunta de rango');
-                        // Ajustar el índice de pregunta actual si es necesario
-                        if (this.preguntaActual >= indicadorIndex) {
-                            this.preguntaActual = Math.max(0, this.preguntaActual - 1);
-                        }
+                // Eliminar la pregunta del indicador del array antes de cargar la pregunta de rango
+                const indicadorIndex = this.preguntas.findIndex(p => p.id === preguntaIndicadorId);
+                if (indicadorIndex !== -1) {
+                    this.preguntas.splice(indicadorIndex, 1);
+                    console.log('🗑️ Pregunta indicador eliminada del flujo antes de cargar pregunta de rango');
+                    if (this.preguntaActual >= indicadorIndex) {
+                        this.preguntaActual = Math.max(0, this.preguntaActual - 1);
                     }
                 }
                 
@@ -1435,39 +1612,9 @@ validarRespuestaSubpregunta(subpregunta, respuesta) {
                     this.cargando = false;
                     return;
                 } else {
-                    // 🔥 NUEVO: Cuando no hay pregunta de rango para NPS, verificar si hay más tipos o finalizar
                     console.log('📭 No hay pregunta de rango para este valor');
                     this.cargando = false;
-                    
-                    // Si es NPS y no hay pregunta de rango, verificar si hay más tipos de calificación
-                    if (esNPS) {
-                        // La alerta ya se mostró en cargarPreguntaRango() con await
-                        // El modal ya está cerrado arriba
-                        
-                        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
-                                           this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
-                        
-                        if (!hayMasTipos) {
-                            // No hay más tipos, finalizar directamente
-                            console.log('🎉 NPS sin pregunta de rango: Finalizando calificación...');
-                            if (this.tiposCalificacionSecuencia.length > 1) {
-                                await this.guardarCalificacionTipoIndividual();
-                            } else {
-                                await this.guardarCalificacionCompleta();
-                            }
-                            this.mostrarAgradecimiento = true;
-                            this.iniciarTemporizadorCierre();
-                            return;
-                        } else {
-                            // Hay más tipos, avanzar al siguiente (avanzarAlSiguienteTipo ya guarda)
-                            console.log('➡️ NPS sin pregunta de rango: Avanzando al siguiente tipo...');
-                            await this.avanzarAlSiguienteTipo();
-                            return;
-                        }
-                    }
-                    // Si no es NPS, continuar normalmente
                     console.log('📭 No hay pregunta de rango, continuando normalmente');
-                    this.cargando = false;
                 }
             }
         }
@@ -1511,34 +1658,18 @@ async procesarPreguntaNormal() {
     if (preguntaActual.es_pregunta_rango) {
         this.guardarRespuestaPreguntaRango();
         
-        // 🔥 CORRECCIÓN FLUJO SECUENCIAL: Verificar si hay más tipos después de NPS
-        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
-                            this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
-        
-        if (!hayMasTipos && this.tipoCalificacionActual === 'nps') {
-            console.log('🎉 NPS final (último tipo): Finalizando calificación completa...');
-            // Guardar individualmente si es flujo secuencial, sino usar método normal
-            if (this.tiposCalificacionSecuencia.length > 1) {
-                await this.guardarCalificacionTipoIndividual();
-            } else {
-                await this.guardarCalificacionCompleta();
-            }
-            this.mostrarCuestionario = false;
-            this.mostrarAgradecimiento = true;
-            this.iniciarTemporizadorCierre();
-            return;
-        }
     }
 
     // 🔥 CORRECCIÓN FCR: Verificar si es pregunta FCR y manejar según la respuesta
     if (this.tipoCalificacionActual === 'fcr' && preguntaActual.tipo_pregunta === 'fcr') {
         const opcionSeleccionada = preguntaActual.opciones.find(
-            op => op.id === respuesta.opcion_seleccionada_id
+            op => op.id == respuesta.opcion_seleccionada_id
         );
         
         if (opcionSeleccionada) {
-            const esSí = opcionSeleccionada.opcion.toLowerCase() === 'sí' || opcionSeleccionada.opcion.toLowerCase() === 'si';
-            const esNo = opcionSeleccionada.opcion.toLowerCase() === 'no';
+            const normOpc = (s) => (s || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            const esSí = normOpc(opcionSeleccionada.opcion) === 'si';
+            const esNo = normOpc(opcionSeleccionada.opcion) === 'no';
             
             // 🔥 CORRECCIÓN: Verificar subpreguntas tanto para "Sí" como para "No"
             // Verificar flag y también existencia real de subpreguntas
@@ -1682,9 +1813,11 @@ async iniciarModoSubpreguntas(opcionId) {
     try {
         console.log('🔍 Cargando subpreguntas para opción ID:', opcionId);
         
-        const response = await fetch(`/api/subpreguntas/${opcionId}`);
-        if (response.ok) {
-            let subpreguntas = await response.json();
+        // 🔥 NUEVO: Usar función helper con soporte offline
+        const cacheKey = `subpreguntas_${opcionId}`;
+        let subpreguntas = await this.cargarDatosConOffline(`/api/subpreguntas/${opcionId}`, cacheKey);
+        
+        if (subpreguntas) {
             
             // 🔥 CORRECIÓN: Parsear opciones de cada subpregunta
             subpreguntas = subpreguntas.map(sp => {
@@ -1989,20 +2122,14 @@ async guardarCalificacionCompleta() {
 
         console.log('📤 Enviando datos al servidor:', JSON.stringify(calificacionData, null, 2));
 
-        const response = await fetch('/api/calificaciones/completa', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify(calificacionData)
-        });
-
-        if (!response.ok) {
-            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        // 🔥 NUEVO: Usar función helper con soporte offline
+        const result = await this.enviarCalificacionConOffline('/api/calificaciones/completa', calificacionData);
+        
+        if (result && result.offline) {
+            console.log('📦 Calificación guardada offline, se sincronizará cuando haya conexión');
+            return;
         }
-
-        const result = await response.json();
+        
         console.log('✅ Calificación guardada exitosamente:', result);
         
     } catch (error) {
@@ -2013,6 +2140,480 @@ async guardarCalificacionCompleta() {
             text: 'Error al guardar la calificación: ' + error.message,
             confirmButtonColor: '#ef4444'
         });
+    }
+},
+
+/**
+ * 🔥 NUEVO: Función helper para cargar datos con soporte offline (preguntas, subpreguntas, etc.)
+ * Con conexión: siempre intentar API primero y actualizar caché (evita servir precache vacío/obsoleto).
+ * Sin conexión: precache y luego cache de respaldo.
+ */
+async cargarDatosConOffline(url, cacheKey) {
+    const readStoredData = (prefix) => {
+        try {
+            const raw = localStorage.getItem(`${prefix}_${cacheKey}`);
+            if (!raw) return undefined;
+            const parsed = JSON.parse(raw);
+            return parsed && Object.prototype.hasOwnProperty.call(parsed, 'data') ? parsed.data : undefined;
+        } catch (e) {
+            console.warn(`⚠️ Error leyendo ${prefix}_${cacheKey}:`, e);
+            return undefined;
+        }
+    };
+
+    const persistData = (data) => {
+        const cacheData = {
+            data,
+            url,
+            timestamp: new Date().toISOString()
+        };
+        const json = JSON.stringify(cacheData);
+        localStorage.setItem(`cache_${cacheKey}`, json);
+        localStorage.setItem(`precache_${cacheKey}`, json);
+        console.log(`✅ Datos guardados en cache/precache: ${cacheKey}`);
+    };
+
+    const fetchAndCache = async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // Evita fetch colgado en tablets al reanudar
+        let response;
+        try {
+            response = await fetch(url, { credentials: 'include', signal: controller.signal });
+        } finally {
+            clearTimeout(timeoutId);
+        }
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+        try {
+            persistData(data);
+        } catch (e) {
+            console.warn('⚠️ Error guardando en cache:', e);
+        }
+        return data;
+    };
+
+    const fallbackOffline = (originalError) => {
+        const fromPrecache = readStoredData('precache');
+        if (fromPrecache !== undefined && fromPrecache !== null) {
+            console.log(`⚡ Offline: datos desde precache: ${cacheKey}`);
+            return fromPrecache;
+        }
+        const fromCache = readStoredData('cache');
+        if (fromCache !== undefined && fromCache !== null) {
+            console.log(`⚡ Offline: datos desde cache: ${cacheKey}`);
+            return fromCache;
+        }
+        console.warn(`⚠️ No hay datos en cache para: ${cacheKey}`);
+        throw originalError || new Error(`No hay datos en cache para ${cacheKey}`);
+    };
+
+    const fromPrecache = readStoredData('precache');
+    const fromCache = readStoredData('cache');
+    const hasLocalData = (fromPrecache !== undefined && fromPrecache !== null) || (fromCache !== undefined && fromCache !== null);
+    const localData = fromPrecache !== undefined && fromPrecache !== null ? fromPrecache : fromCache;
+    const esDatosPreguntas =
+        cacheKey.startsWith('preguntas_') ||
+        cacheKey.startsWith('preguntas_fcr_') ||
+        cacheKey.startsWith('subpreguntas_');
+
+    if (navigator.onLine) {
+        // Estrategia rápida: para preguntas/subpreguntas, servir local al instante
+        // y refrescar en segundo plano para mantener frescura sin bloquear UI.
+        if (esDatosPreguntas && hasLocalData) {
+            fetchAndCache().catch((error) => {
+                console.warn(`⚠️ Refresh en segundo plano falló (${cacheKey}):`, error.message);
+            });
+            console.log(`⚡ Online rápido: datos locales inmediatos (${cacheKey})`);
+            return localData;
+        }
+
+        try {
+            return await fetchAndCache();
+        } catch (error) {
+            console.warn(`📦 Fetch falló (${cacheKey}), usando caché local:`, error.message);
+            try {
+                return fallbackOffline(error);
+            } catch (e2) {
+                throw error;
+            }
+        }
+    }
+
+    try {
+        return fallbackOffline(new Error('Sin conexión'));
+    } catch (error) {
+        console.error(`❌ cargarDatosConOffline sin red ni caché (${cacheKey}):`, error);
+        throw error;
+    }
+},
+
+/**
+ * Fecha/hora en que el usuario envió la calificación (para que al sincronizar
+ * el servidor use created_at correcto, no el momento en que volvió internet).
+ */
+payloadCalificacionParaOffline(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return data;
+    }
+    return {
+        ...data,
+        registrado_en: data.registrado_en || new Date().toISOString(),
+    };
+},
+
+/**
+ * 🔥 NUEVO: Función helper para enviar calificaciones con soporte offline
+ */
+async enviarCalificacionConOffline(url, data) {
+    try {
+        // Intentar enviar normalmente
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            return await response.json();
+        } else {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+    } catch (error) {
+        // 🔥 MEJORADO: Detectar mejor cuando estamos offline
+        const isOffline = !navigator.onLine || 
+                         error.message.includes('Failed to fetch') || 
+                         error.message.includes('NetworkError') ||
+                         error.message.includes('Network request failed') ||
+                         error.name === 'TypeError' ||
+                         error.name === 'NetworkError';
+        
+        if (isOffline) {
+            console.log('📦 Sin conexión detectada, guardando calificación offline...', {
+                navigatorOnLine: navigator.onLine,
+                errorMessage: error.message,
+                errorName: error.name
+            });
+            
+            // Esperar un momento para que offlineHandler se inicialice si no está disponible
+            let handler = window.offlineHandler;
+            if (!handler) {
+                // Esperar hasta 1 segundo para que se inicialice
+                for (let i = 0; i < 10; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    if (window.offlineHandler) {
+                        handler = window.offlineHandler;
+                        break;
+                    }
+                }
+            }
+            
+            if (handler && typeof handler.addToSyncQueue === 'function') {
+                try {
+                    const payload = this.payloadCalificacionParaOffline(data);
+                    const requestId = handler.addToSyncQueue(
+                        url,
+                        'POST',
+                        payload,
+                        {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                        }
+                    );
+                    
+                    console.log('✅ Calificación agregada a cola de sincronización:', requestId);
+                    
+                    return {
+                        offline: true,
+                        success: true,
+                        message: 'Calificación guardada localmente. Se sincronizará cuando haya conexión.',
+                        requestId
+                    };
+                } catch (handlerError) {
+                    console.error('❌ Error agregando a cola de sincronización:', handlerError);
+                }
+            }
+            
+            // Si no hay offlineHandler o falló, guardar en localStorage como respaldo
+            try {
+                const offlineCalificaciones = JSON.parse(localStorage.getItem('offline_calificaciones') || '[]');
+                const payload = this.payloadCalificacionParaOffline(data);
+                offlineCalificaciones.push({
+                    url,
+                    data: payload,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    timestamp: new Date().toISOString()
+                });
+                localStorage.setItem('offline_calificaciones', JSON.stringify(offlineCalificaciones));
+                
+                console.log('✅ Calificación guardada en localStorage como respaldo');
+                
+                return {
+                    offline: true,
+                    success: true,
+                    message: 'Calificación guardada localmente. Se sincronizará cuando haya conexión.'
+                };
+            } catch (storageError) {
+                console.error('❌ Error guardando en localStorage:', storageError);
+                throw error; // Si falla todo, lanzar el error original
+            }
+        }
+        
+        // Si es otro tipo de error, lanzarlo
+        throw error;
+    }
+},
+
+/**
+ * 🔥 NUEVO: Configurar eventos de sincronización
+ */
+configurarEventosSincronizacion() {
+    // Escuchar evento de sincronización completada
+    window.addEventListener('calificaciones-sincronizadas', (event) => {
+        const { sincronizadas, pendientes } = event.detail || {};
+        console.log(`✅ ${sincronizadas} calificaciones sincronizadas. Pendientes: ${pendientes}`);
+        
+        // Mostrar notificación al usuario
+        if (sincronizadas > 0) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Sincronización completada',
+                text: `${sincronizadas} calificación(es) sincronizada(s) exitosamente.`,
+                timer: 3000,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
+            });
+        }
+    });
+    
+    // Escuchar cambios de estado de conexión
+    window.addEventListener('connection-status', (event) => {
+        const { online } = event.detail || {};
+        if (online) {
+            console.log('✅ Conexión restaurada, verificando calificaciones pendientes...');
+            // Verificar si hay calificaciones pendientes
+            const offlineCalificaciones = JSON.parse(localStorage.getItem('offline_calificaciones') || '[]');
+            const syncQueue = JSON.parse(localStorage.getItem('sync_queue') || '[]');
+            
+            if (offlineCalificaciones.length > 0 || syncQueue.length > 0) {
+                console.log(`🔄 Hay ${offlineCalificaciones.length + syncQueue.length} calificaciones pendientes de sincronizar`);
+            }
+        }
+    });
+    
+    console.log('✅ Eventos de sincronización configurados');
+},
+
+/**
+ * 🔥 NUEVO: Precargar todas las preguntas de todos los niveles en segundo plano
+ * Esto mejora significativamente el rendimiento al calificar
+ */
+async precargarTodasLasPreguntas() {
+    // Ejecutar en segundo plano sin bloquear la UI
+    setTimeout(async () => {
+        try {
+            // Verificar que todos los datos necesarios estén disponibles
+            if (!this.areaSeleccionada) {
+                console.log('⚠️ No se puede precargar: falta areaSeleccionada');
+                return;
+            }
+            
+            if (!this.nivelesCalificacion || this.nivelesCalificacion.length === 0) {
+                console.log('⚠️ No se puede precargar: niveles no cargados aún. Reintentando en 1 segundo...');
+                // Reintentar después de 1 segundo, máximo 5 intentos
+                if (!this.intentosPrecarga) {
+                    this.intentosPrecarga = 0;
+                }
+                this.intentosPrecarga++;
+                if (this.intentosPrecarga < 5) {
+                    setTimeout(() => this.precargarTodasLasPreguntas(), 1000);
+                } else {
+                    console.warn('⚠️ Máximo de intentos de precarga alcanzado. Los niveles no están disponibles.');
+                }
+                return;
+            }
+            
+            // Resetear contador de intentos si los niveles están disponibles
+            this.intentosPrecarga = 0;
+
+            console.log('🚀 Iniciando precarga de preguntas para todos los niveles...');
+            const sedeGuardada = localStorage.getItem('sede_seleccionada');
+            let sedeId = null;
+            
+            if (this.areaSeleccionada.sede_id) {
+                sedeId = this.areaSeleccionada.sede_id;
+            } else if (sedeGuardada) {
+                try {
+                    const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
+                    if (sedeResponse.ok) {
+                        const sedeData = await sedeResponse.json();
+                        sedeId = sedeData.id;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ No se pudo obtener sede_id para precarga:', error);
+                }
+            }
+
+            // 🔥 NUEVO: Precargar preguntas para cada nivel (CSAT)
+            const precargasNiveles = this.nivelesCalificacion.map(async (nivel) => {
+                try {
+                    let url = `/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=${nivel.id}`;
+                    if (sedeId) {
+                        url += `&sede_id=${sedeId}`;
+                    }
+
+                    const cacheKey = `preguntas_${this.areaSeleccionada.id}_${nivel.id}_${sedeId || 'sin_sede'}`;
+                    
+                    // Verificar si ya está en caché precargado
+                    const precached = localStorage.getItem(`precache_${cacheKey}`);
+                    if (precached) {
+                        console.log(`✅ Preguntas CSAT del nivel ${nivel.id} ya están precargadas`);
+                        return await this.precargarSubpreguntasDePreguntas(JSON.parse(precached).data);
+                    }
+
+                    // Cargar desde API
+                    const response = await fetch(url, {
+                        credentials: 'include'
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Guardar en caché precargado
+                        const cacheData = {
+                            data: data,
+                            url: url,
+                            timestamp: new Date().toISOString()
+                        };
+                        localStorage.setItem(`precache_${cacheKey}`, JSON.stringify(cacheData));
+                        console.log(`✅ Precargadas preguntas CSAT para nivel ${nivel.id} (${data.length} preguntas)`);
+                        
+                        // Precargar subpreguntas
+                        await this.precargarSubpreguntasDePreguntas(data);
+                    } else {
+                        console.warn(`⚠️ No se pudieron precargar preguntas CSAT para nivel ${nivel.id}: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ Error precargando preguntas CSAT para nivel ${nivel.id}:`, error);
+                }
+            });
+
+            // 🔥 NUEVO: Precargar preguntas FCR (individuales y cuando se usan con CSAT)
+            const precargaFCR = async () => {
+                try {
+                    const url = `/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=todas&sede_id=${sedeId || 'sin_sede'}`;
+                    const cacheKey = `preguntas_fcr_todas_${this.areaSeleccionada.id}_${sedeId || 'sin_sede'}`;
+                    
+                    // Verificar si ya está en caché precargado
+                    const precached = localStorage.getItem(`precache_${cacheKey}`);
+                    if (precached) {
+                        console.log(`✅ Preguntas FCR ya están precargadas`);
+                        const data = JSON.parse(precached).data;
+                        const preguntaFCR = data.find(p => p.tipo_pregunta === 'fcr' && p.is_active);
+                        if (preguntaFCR) {
+                            await this.precargarSubpreguntasDePreguntas([preguntaFCR]);
+                        }
+                        return;
+                    }
+
+                    // Cargar desde API
+                    const response = await fetch(url, {
+                        credentials: 'include'
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Guardar en caché precargado
+                        const cacheData = {
+                            data: data,
+                            url: url,
+                            timestamp: new Date().toISOString()
+                        };
+                        localStorage.setItem(`precache_${cacheKey}`, JSON.stringify(cacheData));
+                        
+                        // Buscar pregunta FCR y precargar sus subpreguntas
+                        const preguntaFCR = data.find(p => p.tipo_pregunta === 'fcr' && p.is_active);
+                        if (preguntaFCR) {
+                            console.log(`✅ Precargadas preguntas FCR (${data.length} preguntas totales, 1 FCR encontrada)`);
+                            await this.precargarSubpreguntasDePreguntas([preguntaFCR]);
+                        } else {
+                            console.log(`✅ Precargadas preguntas (${data.length} preguntas, sin FCR)`);
+                        }
+                    } else {
+                        console.warn(`⚠️ No se pudieron precargar preguntas FCR: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ Error precargando preguntas FCR:`, error);
+                }
+            };
+
+            // Ejecutar todas las precargas en paralelo
+            const todasLasPrecargas = [
+                ...precargasNiveles, // CSAT por nivel
+                precargaFCR() // FCR
+            ];
+
+            // Esperar a que todas las precargas terminen
+            await Promise.all(todasLasPrecargas);
+            console.log('🎉 Precarga completa: CSAT y FCR cargados');
+        } catch (error) {
+            console.error('❌ Error en precarga de preguntas:', error);
+        }
+    }, 500); // Esperar 500ms para no bloquear la carga inicial
+},
+
+/**
+ * 🔥 NUEVO: Helper para precargar subpreguntas de un array de preguntas
+ */
+async precargarSubpreguntasDePreguntas(preguntas) {
+    if (!preguntas || !Array.isArray(preguntas)) {
+        return;
+    }
+
+    for (const pregunta of preguntas) {
+        if (pregunta.opciones && Array.isArray(pregunta.opciones)) {
+            for (const opcion of pregunta.opciones) {
+                if (opcion.tiene_subpreguntas && opcion.id) {
+                    try {
+                        const subpreguntasUrl = `/api/subpreguntas/${opcion.id}`;
+                        const subpreguntasCacheKey = `subpreguntas_${opcion.id}`;
+                        
+                        // Verificar si ya está precargado
+                        const subpreguntasPrecached = localStorage.getItem(`precache_${subpreguntasCacheKey}`);
+                        if (subpreguntasPrecached) {
+                            continue; // Ya está precargado
+                        }
+                        
+                        const subpreguntasResponse = await fetch(subpreguntasUrl, {
+                            credentials: 'include'
+                        });
+                        
+                        if (subpreguntasResponse.ok) {
+                            const subpreguntasData = await subpreguntasResponse.json();
+                            const subpreguntasCacheData = {
+                                data: subpreguntasData,
+                                url: subpreguntasUrl,
+                                timestamp: new Date().toISOString()
+                            };
+                            localStorage.setItem(`precache_${subpreguntasCacheKey}`, JSON.stringify(subpreguntasCacheData));
+                            console.log(`✅ Precargadas subpreguntas para opción ${opcion.id}`);
+                        }
+                    } catch (subpreguntasError) {
+                        // Ignorar errores de subpreguntas, no es crítico
+                        console.warn(`⚠️ No se pudieron precargar subpreguntas para opción ${opcion.id}:`, subpreguntasError);
+                    }
+                }
+            }
+        }
     }
 },
 
@@ -2112,9 +2713,11 @@ extraerRespuestasSubpreguntas() {
         try {
             console.log('🔍 Cargando subpreguntas para opción:', opcionId);
             
-            const response = await fetch(`/api/subpreguntas/${opcionId}`);
-            if (response.ok) {
-                const subpreguntas = await response.json();
+            // 🔥 NUEVO: Usar función helper con soporte offline
+            const cacheKey = `subpreguntas_${opcionId}`;
+            const subpreguntas = await this.cargarDatosConOffline(`/api/subpreguntas/${opcionId}`, cacheKey);
+            
+            if (subpreguntas) {
                 console.log('📝 Subpreguntas cargadas:', subpreguntas);
                 
                 if (subpreguntas.length > 0) {
@@ -2143,9 +2746,11 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
     try {
         console.log('🔍 Buscando pregunta de rango para:', { preguntaId, valor });
         
-        const response = await fetch(`/api/preguntas/${preguntaId}/rango/${valor}`);
-        if (response.ok) {
-            const preguntaRango = await response.json();
+        // 🔥 NUEVO: Usar función helper con soporte offline
+        const cacheKey = `pregunta_rango_${preguntaId}_${valor}`;
+        const preguntaRango = await this.cargarDatosConOffline(`/api/preguntas/${preguntaId}/rango/${valor}`, cacheKey);
+        
+        if (preguntaRango) {
             
             if (preguntaRango) {
                 console.log('✅ Pregunta de rango encontrada:', preguntaRango);
@@ -2274,6 +2879,11 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
     },
 
         iniciarTemporizadorCierre() {
+            // Evitar múltiples intervalos activos (causa bucles de cierre/recarga)
+            if (this.intervalo) {
+                clearInterval(this.intervalo);
+                this.intervalo = null;
+            }
             this.tiempoRestante = 5;
             this.intervalo = setInterval(() => {
                 this.tiempoRestante--;
@@ -2284,20 +2894,36 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
             }, 1000);
         },
 
-        cerrarAgradecimiento() {
-            if (this.intervalo) {
-                clearInterval(this.intervalo);
+        async cerrarAgradecimiento() {
+            if (this.cerrandoAgradecimientoEnCurso) {
+                return;
             }
-            this.mostrarAgradecimiento = false;
-            
-            // 🔥 NUEVO: Reiniciar completamente la calificación incluyendo la secuencia
-            console.log('🔄 Cerrando agradecimiento y reiniciando todo...');
-            this.reiniciarCalificacion();
-            
-            // 🔥 NUEVO: Volver a determinar la secuencia de tipos para que esté lista para la próxima calificación
-            if (this.areaSeleccionada) {
-                this.determinarSecuenciaTipos();
-                console.log('📋 Secuencia de tipos reiniciada:', this.tiposCalificacionSecuencia);
+            this.cerrandoAgradecimientoEnCurso = true;
+            try {
+                if (this.intervalo) {
+                    clearInterval(this.intervalo);
+                    this.intervalo = null;
+                }
+                this.mostrarAgradecimiento = false;
+                
+                // 🔥 NUEVO: Reiniciar completamente la calificación incluyendo la secuencia
+                console.log('🔄 Cerrando agradecimiento y reiniciando todo...');
+                this.reiniciarCalificacion();
+                
+                // 🔥 NUEVO: Volver a determinar la secuencia de tipos para que esté lista para la próxima calificación
+                if (this.areaSeleccionada) {
+                    this.determinarSecuenciaTipos();
+                    console.log('📋 Secuencia de tipos reiniciada:', this.tiposCalificacionSecuencia);
+                    try {
+                        if (!this.areaSeleccionada.permite_csat && this.areaSeleccionada.permite_fcr) {
+                            await this.cargarPreguntaFCR();
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ No se pudieron recargar preguntas tras agradecimiento:', e);
+                    }
+                }
+            } finally {
+                this.cerrandoAgradecimientoEnCurso = false;
             }
         },
 
@@ -2329,15 +2955,11 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
                             break;
                         }
                         // Verificar valor de indicador modificado (diferente de 5)
-                        // Para NPS, si la pregunta actual NO es de tipo indicador_0_10, entonces es una respuesta del slider inicial
-                        // y no debe considerarse como interacción en el modal
                         if (respuesta.valor !== undefined && respuesta.valor !== null && respuesta.valor !== 5) {
-                            // Si la pregunta actual es de tipo indicador_0_10, entonces es interacción en el modal
                             if (preguntaActual && preguntaActual.tipo === 'indicador_0_10' && preguntaActual.id == preguntaId) {
                                 hayRespuestasPreguntas = true;
                                 break;
                             }
-                            // Si no, es probablemente una respuesta del slider inicial de NPS, no contar como interacción
                         }
                         // Verificar opciones múltiples
                         if (respuesta.opciones_seleccionadas && Array.isArray(respuesta.opciones_seleccionadas) && respuesta.opciones_seleccionadas.length > 0) {
@@ -2487,7 +3109,8 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
         },
 
         /**
-         * Inicia el timeout para cerrar el modal si no hay interacción o si hay respuesta pero no se continúa
+         * Cierra el modal tras tiempoInactividad sin eventos que llamen a resetearTimeoutInactividad.
+         * No se mira el estado del formulario: si el temporizador vence, el usuario dejó de interactuar.
          */
         iniciarTimeoutInactividad() {
             // Solo iniciar si el modal está abierto
@@ -2500,23 +3123,15 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
             
             console.log('⏱️ Iniciando timeout de inactividad:', this.tiempoInactividad, 'ms');
             
-            // Iniciar nuevo timeout
-            // El modal se cerrará después de 5 segundos sin importar si hay respuesta o no
-            // Si el usuario no continúa, significa que quiere cerrar el modal
             this.timeoutInactividad = setTimeout(() => {
-                // Verificar que el modal aún esté abierto
                 if (!this.mostrarCuestionario) {
                     return;
                 }
-                
-                // Cerrar el modal automáticamente después de 5 segundos
-                // Esto aplica tanto si no hay interacción como si hay respuesta pero no se continúa
-                const hayInteraccion = this.hayInteraccionConCalificacion();
-                if (hayInteraccion) {
-                    console.log('⏱️ Tiempo de inactividad agotado (respuesta seleccionada pero sin continuar), cerrando modal automáticamente...');
-                } else {
-                    console.log('⏱️ Tiempo de inactividad agotado (sin interacción), cerrando modal automáticamente...');
+                if (this.cargando) {
+                    this.iniciarTimeoutInactividad();
+                    return;
                 }
+                console.log('⏱️ Tiempo de inactividad agotado, cerrando modal automáticamente...');
                 this.cerrarCuestionario();
             }, this.tiempoInactividad);
         },
@@ -2569,8 +3184,6 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
                 this.opcionTextoLibreSeleccionada = null;
                 this.respuestaLibre = '';
                 this.arrastrando = false;
-                this.respuestaIndicadorNPS = 5;
-                
                 // Limpiar acumuladores para empezar de nuevo
                 this.respuestasAcumuladas = {};
                 this.respuestasSubpreguntasAcumuladas = [];
@@ -2607,10 +3220,7 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
             // Limpiar errores
             this.errorValidacion = '';
             
-            // Limpiar valores de indicador (excepto NPS si ya está configurado)
-            if (this.nivelSeleccionado?.nombre !== 'NPS') {
-                this.respuestaIndicadorValor = 5;
-            }
+            this.respuestaIndicadorValor = 5;
             
             // Limpiar estado de arrastre
             this.arrastrando = false;
@@ -2622,6 +3232,9 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
         reiniciarCalificacion() {
             // Limpiar nivel seleccionado para volver a la pantalla inicial
             this.nivelSeleccionado = null;
+            
+            // Forzar recarga desde caché/API en la próxima calificación (evita estado vacío en 2.ª visita offline)
+            this.preguntaFCRPrincipal = null;
             
             // Limpiar preguntas y respuestas
             this.preguntas = [];
@@ -2649,7 +3262,6 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
             // Limpiar errores y valores por defecto
             this.errorValidacion = '';
             this.respuestaIndicadorValor = 5;
-            this.respuestaIndicadorNPS = 5;
             this.textoLibreOpcion = '';
             this.opcionTextoLibreSeleccionada = null;
             this.respuestaUnica = null;
@@ -2673,31 +3285,6 @@ async cargarPreguntaRango(preguntaId, valor, mostrarAlerta = true) {
         return tipos[tipo] || '';
     },
 
-    // 🔥 Pantalla completa (para tablets)
-    solicitarPantallaCompleta() {
-        const elem = document.documentElement;
-        try {
-            if (!document.fullscreenElement) {
-                if (elem.requestFullscreen) {
-                    elem.requestFullscreen().catch(() => {
-                        // Ignorar errores silenciosamente si el navegador bloquea fullscreen
-                        // Esto puede ocurrir si no hay un gesto directo del usuario
-                    });
-                } else if (elem.webkitRequestFullscreen) {
-                    elem.webkitRequestFullscreen().catch(() => {
-                        // Ignorar errores silenciosamente
-                    });
-                } else if (elem.msRequestFullscreen) {
-                    elem.msRequestFullscreen().catch(() => {
-                        // Ignorar errores silenciosamente
-                    });
-                }
-            }
-        } catch (e) {
-            // Ignorar errores si el navegador bloquea fullscreen fuera de gesto de usuario
-            // No mostrar errores en consola para evitar ruido
-        }
-    },
 
         // Métodos auxiliares para SVGs (sin cambios)
         getSvgViewBox(nivelId) {
@@ -2890,9 +3477,11 @@ async cargarSubpreguntasParaOpcion(opcionId) {
     try {
         console.log('🔍 Cargando subpreguntas para opción ID:', opcionId);
         
-        const response = await fetch(`/api/subpreguntas/${opcionId}`);
-        if (response.ok) {
-            const subpreguntas = await response.json();
+        // 🔥 NUEVO: Usar función helper con soporte offline
+        const cacheKey = `subpreguntas_${opcionId}`;
+        const subpreguntas = await this.cargarDatosConOffline(`/api/subpreguntas/${opcionId}`, cacheKey);
+        
+        if (subpreguntas) {
             console.log('📝 Subpreguntas cargadas:', subpreguntas);
             
             if (subpreguntas.length > 0) {
@@ -3582,72 +4171,7 @@ esOpcionSeleccionada(opcion, index) {
     }
 },
 
-// 🔥 NUEVO: Métodos para NPS inicial
-iniciarArrastreNPS(event) {
-    this.solicitarPantallaCompleta();
-    this.arrastrando = true;
-    
-    // Guardar referencia al track para usarla en actualizarIndicadorNPS
-    this.trackNPS = event.currentTarget || event.target?.closest('.indicador-track');
-    
-    this.actualizarIndicadorNPS(event);
-    document.addEventListener('mousemove', this.actualizarIndicadorNPS);
-    document.addEventListener('mouseup', this.detenerArrastreNPS);
-    document.addEventListener('touchmove', this.actualizarIndicadorNPS, { passive: false });
-    document.addEventListener('touchend', this.detenerArrastreNPS);
-    
-    event.preventDefault();
-},
-
-actualizarIndicadorNPS(event) {
-    if (!this.arrastrando) return;
-    
-    // Usar la referencia guardada o buscar el track
-    const track = this.trackNPS || document.querySelector('.indicador-nps-wrapper .indicador-track');
-    if (!track) return;
-    
-    const rect = track.getBoundingClientRect();
-    let clientX;
-    
-    if (event.type.includes('touch')) {
-        clientX = event.touches[0].clientX;
-    } else {
-        clientX = event.clientX;
-    }
-    
-    const percentage = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-    this.respuestaIndicadorNPS = Math.round((percentage / 100) * 10);
-    
-    // Resetear timeout de inactividad cuando se arrastra el indicador
-    this.resetearTimeoutInactividad();
-    
-    event.preventDefault();
-},
-
-detenerArrastreNPS() {
-    this.arrastrando = false;
-    this.trackNPS = null;
-    document.removeEventListener('mousemove', this.actualizarIndicadorNPS);
-    document.removeEventListener('mouseup', this.detenerArrastreNPS);
-    document.removeEventListener('touchmove', this.actualizarIndicadorNPS);
-    document.removeEventListener('touchend', this.detenerArrastreNPS);
-},
-
-// 🔥 NUEVO: Seleccionar valor NPS directamente
-seleccionarValorNPS(valor) {
-    this.respuestaIndicadorNPS = valor;
-},
-
-// 🔥 NUEVO: Click en el track del slider
-clickIndicadorNPS(event) {
-    this.solicitarPantallaCompleta();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const clientX = event.clientX || (event.touches && event.touches[0].clientX);
-    const percentage = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-    this.respuestaIndicadorNPS = Math.round((percentage / 100) * 10);
-},
-
-// 🔥 NUEVO: Métodos para indicador 0-10 en el modal (NPS)
+// Indicador 0-10 en el modal
 iniciarArrastreIndicador(event) {
     this.arrastrando = true;
     
@@ -3742,198 +4266,31 @@ seleccionarValorIndicador(valor) {
     this.resetearTimeoutInactividad();
 },
 
-async iniciarConNPS() {
-    this.solicitarPantallaCompleta();
-    // 🔥 CORRECCIÓN: Usar el nivel correcto desde la base de datos (nivel 1 para NPS)
-    const valorGuardado = this.respuestaIndicadorNPS; // Guardar el valor del slider
-    this.nivelSeleccionado = { id: 1, nombre: 'NPS', valor: valorGuardado };
-    
-    // Sincronizar ambos valores antes de iniciar el cuestionario
-    this.respuestaIndicadorNPS = valorGuardado;
-    this.respuestaIndicadorValor = valorGuardado;
-    
-    // 🔥 NUEVO: Establecer tipo actual como NPS
-    this.tipoCalificacionActual = 'nps';
-    
-    // 🔥 CORRECCIÓN: Cargar las preguntas pero NO abrir el modal todavía
-    this.cargando = true;
-    
-    try {
-        const sedeGuardada = localStorage.getItem('sede_seleccionada');
-        let sedeId = null;
-        
-        if (this.areaSeleccionada.sede_id) {
-            sedeId = this.areaSeleccionada.sede_id;
-        } else if (sedeGuardada) {
-            const sedeResponse = await fetch(`/api/sedes/buscar?nombre=${encodeURIComponent(sedeGuardada)}`);
-            if (sedeResponse.ok) {
-                const sedeData = await sedeResponse.json();
-                sedeId = sedeData.id;
-            }
-        }
-
-        let url = `/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=${this.nivelSeleccionado.id}`;
-        if (sedeId) {
-            url += `&sede_id=${sedeId}`;
-        }
-
-        const response = await fetch(url);
-        
-        if (response.ok) {
-            const todasLasPreguntas = await response.json();
-            
-            // Filtrar solo preguntas NPS raíces
-            this.preguntas = todasLasPreguntas.filter(pregunta => {
-                const esRaiz = !pregunta.es_condicional || pregunta.es_condicional === false;
-                const esDelTipoCorrecto = pregunta.tipo_pregunta === 'nps';
-                return esRaiz && esDelTipoCorrecto;
-            });
-            
-            this.todasLasPreguntas = todasLasPreguntas;
-        } else {
-            throw new Error('Error al cargar preguntas');
-        }
-    } catch (error) {
-        console.error('Error cargando preguntas NPS:', error);
-        this.cargando = false;
-        return;
-    }
-    
-    // 🔥 CORRECCIÓN: Determinar si debemos eliminar la pregunta NPS del modal
-    // Si NO viene del flujo secuencial (solo NPS) O si viene del flujo secuencial PERO NPS es el primer tipo
-    // entonces debemos eliminar la pregunta NPS porque ya se seleccionó en la barra inicial
-    const vieneDelFlujoSecuencial = this.tiposCalificacionSecuencia.length > 1;
-    const esNPSPrimerTipo = vieneDelFlujoSecuencial && 
-                           this.indiceTipoActual === 0 && 
-                           this.tipoCalificacionActual === 'nps';
-    const debeEliminarNPSDelModal = !vieneDelFlujoSecuencial || esNPSPrimerTipo;
-    
-    if (this.preguntas.length > 0 && debeEliminarNPSDelModal) {
-        // Aplicar la lógica si NO viene del flujo secuencial O si NPS es el primer tipo del flujo
-        const preguntaNPS = this.preguntas[0]; // La primera pregunta es NPS
-        
-        // Guardar la respuesta del indicador NPS
-        if (preguntaNPS.tipo === 'indicador_0_10') {
-            this.respuestas[preguntaNPS.id] = { valor: valorGuardado };
-            console.log('✅ Respuesta NPS guardada:', valorGuardado);
-            
-            // Guardar el ID de la pregunta NPS antes de eliminarla
-            const preguntaNPSId = preguntaNPS.id;
-            
-            // 🔥 CORRECCIÓN: Eliminar la pregunta NPS PRIMERO, antes de cargar la pregunta de rango
-            // porque ya se seleccionó el valor en la barra inicial y no debe aparecer en el modal
-            this.preguntas.splice(0, 1);
-            console.log('🗑️ Pregunta NPS principal eliminada del flujo antes de cargar pregunta de rango');
-            console.log('📋 Preguntas después de eliminar NPS:', this.preguntas.length);
-            
-            // Cargar directamente las subpreguntas de rango (mostrar alerta si no hay)
-            const tienePreguntaRango = await this.cargarPreguntaRango(preguntaNPSId, valorGuardado, true);
-            
-            console.log('📋 Preguntas después de cargar pregunta de rango:', this.preguntas.length, this.preguntas.map(p => ({ id: p.id, tipo: p.tipo, es_rango: p.es_pregunta_rango })));
-            
-            if (tienePreguntaRango) {
-                console.log('✅ Subpreguntas de rango cargadas, abriendo modal con pregunta de rango');
-                
-                // 🔥 VERIFICACIÓN CRÍTICA: Asegurar que no haya preguntas NPS (indicador_0_10) en el array
-                this.preguntas = this.preguntas.filter(p => !(p.tipo === 'indicador_0_10' && p.tipo_pregunta === 'nps'));
-                console.log('🔍 Preguntas después de filtrar NPS:', this.preguntas.length);
-                
-                // Verificar que la pregunta de rango esté en el array
-                const preguntaRangoIndex = this.preguntas.findIndex(p => p.es_pregunta_rango && p.pregunta_indicador_id === preguntaNPSId);
-                if (preguntaRangoIndex !== -1) {
-                    this.preguntaActual = preguntaRangoIndex;
-                } else {
-                    // Si no se encuentra por ID, buscar la primera pregunta de rango
-                    const primeraRangoIndex = this.preguntas.findIndex(p => p.es_pregunta_rango);
-                    this.preguntaActual = primeraRangoIndex !== -1 ? primeraRangoIndex : 0;
-                }
-                
-                // Verificar que la pregunta en preguntaActual no sea NPS
-                if (this.preguntas[this.preguntaActual] && this.preguntas[this.preguntaActual].tipo === 'indicador_0_10') {
-                    console.error('❌ ERROR: La pregunta actual es NPS, debería ser pregunta de rango');
-                    // Buscar la siguiente pregunta que no sea NPS
-                    const siguienteNoNPS = this.preguntas.findIndex((p, idx) => idx >= this.preguntaActual && p.tipo !== 'indicador_0_10');
-                    if (siguienteNoNPS !== -1) {
-                        this.preguntaActual = siguienteNoNPS;
-                    }
-                }
-                
-                // 🔥 NUEVO: Limpiar todas las respuestas antes de abrir el modal NPS
-                this.limpiarRespuestasParaNuevaCalificacion();
-                // Restaurar la respuesta NPS que ya se guardó
-                if (preguntaNPS.tipo === 'indicador_0_10') {
-                    this.respuestas[preguntaNPS.id] = { valor: valorGuardado };
-                }
-                
-                // La pregunta de rango ya está en el array (se insertó por cargarPreguntaRango)
-                // Ahora sí abrir el modal para mostrar directamente la pregunta de rango
-                this.mostrarCuestionario = true;
-                this.cargando = false;
-                console.log('✅ Abriendo modal directamente con pregunta de rango (sin pregunta NPS)');
-                console.log('📍 Índice de pregunta actual:', this.preguntaActual);
-                console.log('📝 Pregunta que se mostrará:', this.preguntas[this.preguntaActual]);
-                console.log('🔍 Verificación final - Tipo de pregunta:', this.preguntas[this.preguntaActual]?.tipo, 'Es rango:', this.preguntas[this.preguntaActual]?.es_pregunta_rango);
-                return; // 🔥 IMPORTANTE: Salir aquí para no continuar con el código siguiente
-            } else {
-                // 🔥 CORRECCIÓN: Cuando no hay pregunta de rango, la alerta ya se mostró en cargarPreguntaRango
-                // NO abrir el modal, solo finalizar o avanzar
-                this.cargando = false;
-                const hayMasTiposNPS = this.tiposCalificacionSecuencia.length > 1 && 
-                                        this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
-                
-                if (!hayMasTiposNPS) {
-                    console.log('🎉 NPS final sin preguntas de rango: Finalizando directamente...');
-                    if (this.tiposCalificacionSecuencia.length > 1) {
-                        await this.guardarCalificacionTipoIndividual();
-                    } else {
-                        await this.guardarCalificacionCompleta();
-                    }
-                    this.mostrarAgradecimiento = true;
-                    this.iniciarTemporizadorCierre();
-                    return;
-                } else {
-                    console.log('➡️ NPS sin pregunta de rango pero hay más tipos: Avanzando...');
-                    await this.avanzarAlSiguienteTipo();
-                    return;
-                }
-            }
-        } else {
-            // 🔥 NUEVO: Limpiar todas las respuestas antes de abrir el modal NPS
-            this.limpiarRespuestasParaNuevaCalificacion();
-            
-            // Si la pregunta NPS no es de tipo indicador_0_10, abrir el modal normalmente
-            this.mostrarCuestionario = true;
-            this.preguntaActual = 0;
-            this.cargando = false;
-            console.log('✅ Pregunta NPS no es indicador_0_10, abriendo modal normalmente');
-            return;
-        }
-    } else if (vieneDelFlujoSecuencial && this.preguntas.length > 0 && !esNPSPrimerTipo) {
-        // 🔥 CORRECCIÓN: Si viene del flujo secuencial pero NPS NO es el primer tipo,
-        // inicializar el valor y abrir el modal (el usuario aún no ha seleccionado en la barra inicial)
-        const preguntaNPS = this.preguntas[0];
-        if (preguntaNPS.tipo === 'indicador_0_10') {
-            // 🔥 NUEVO: Limpiar todas las respuestas antes de abrir el modal NPS
-            this.limpiarRespuestasParaNuevaCalificacion();
-            
-            // Inicializar el valor del indicador con el valor guardado
-            this.respuestas[preguntaNPS.id] = { valor: valorGuardado };
-            this.respuestaIndicadorValor = valorGuardado;
-            // Abrir el modal para que el usuario pueda usar el slider
-            this.mostrarCuestionario = true;
-            this.preguntaActual = 0;
-            this.cargando = false;
-            console.log('✅ NPS en flujo secuencial (no es primer tipo): Pregunta preparada con valor inicial:', valorGuardado);
-        }
-    } else {
-        this.cargando = false;
-    }
-},
-
-async iniciarConFCR(resuelto, opcion) {
-    this.solicitarPantallaCompleta();
+async iniciarConFCR(resuelto, opcion, event) {
     this.respuestaFCR = resuelto;
     const opcionSeleccionada = opcion;
+    
+    // Forzar que el hover se desactive después del clic
+    if (event && event.currentTarget) {
+        // Agregar clase para desactivar hover
+        event.currentTarget.classList.add('fcr-no-hover');
+        // Usar nextTick para asegurar que el DOM se actualice
+        this.$nextTick(() => {
+            // Forzar que el elemento pierda el hover disparando mouseleave
+            const mouseLeaveEvent = new MouseEvent('mouseleave', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            });
+            event.currentTarget.dispatchEvent(mouseLeaveEvent);
+            // Remover la clase después de 2 segundos para permitir hover de nuevo
+            setTimeout(() => {
+                if (event.currentTarget) {
+                    event.currentTarget.classList.remove('fcr-no-hover');
+                }
+            }, 2000);
+        });
+    }
     
     // 🔥 NUEVO: Establecer tipo actual como FCR
     this.tipoCalificacionActual = 'fcr';
@@ -4084,10 +4441,37 @@ async cargarSubpreguntasFCRParaOpcion(opcionId, esSi = false) {
         }
         
         // Cargar las subpreguntas de la opción
-        const subpreguntasResponse = await fetch(`/api/subpreguntas/${opcionId}`);
+        // 🔥 NUEVO: Usar función helper con soporte offline
+        const cacheKey = `subpreguntas_${opcionId}`;
+        let subpreguntas = null;
+        let errorCarga = null;
+        let noHayCache = false;
         
-        if (subpreguntasResponse.ok) {
-            let subpreguntas = await subpreguntasResponse.json();
+        try {
+            subpreguntas = await this.cargarDatosConOffline(`/api/subpreguntas/${opcionId}`, cacheKey);
+        } catch (error) {
+            errorCarga = error;
+            console.error('❌ Error cargando subpreguntas:', error);
+            
+            // Verificar si realmente no hay datos en caché
+            try {
+                const cached = localStorage.getItem(`cache_${cacheKey}`);
+                if (!cached) {
+                    noHayCache = true;
+                    console.warn(`⚠️ No hay datos en caché para: ${cacheKey}`);
+                } else {
+                    // Hay datos en caché, intentar cargarlos directamente
+                    const cacheData = JSON.parse(cached);
+                    subpreguntas = cacheData.data;
+                    console.log(`✅ Subpreguntas cargadas desde caché: ${cacheKey}`);
+                }
+            } catch (cacheError) {
+                console.error('❌ Error verificando/cargando desde caché:', cacheError);
+                noHayCache = true;
+            }
+        }
+        
+        if (subpreguntas) {
             
             // Procesar opciones de las subpreguntas
             subpreguntas = subpreguntas.map(subpregunta => {
@@ -4132,11 +4516,21 @@ async cargarSubpreguntasFCRParaOpcion(opcionId, esSi = false) {
                     console.log('✅ mostrarCuestionario:', this.mostrarCuestionario);
                     console.log('✅ subpreguntasActuales.length:', this.subpreguntasActuales.length);
                 });
+                // El conteo de inactividad se reinicia vía watch(cargando) al poner cargando = false arriba
             } else {
                 console.log('⚠️ No hay subpreguntas para esta opción');
                 this.cargando = false;
                 
-                // Si no hay subpreguntas, continuar con el flujo normal
+                await Swal.fire({
+                    icon: 'info',
+                    title: 'Sin preguntas adicionales',
+                    text: 'No se encontraron preguntas adicionales para este motivo. Puede continuar y se guardará su respuesta.',
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#4f46e5',
+                    allowOutsideClick: false,
+                    allowEscapeKey: true
+                });
+                
                 const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
                                     this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
                 
@@ -4154,34 +4548,107 @@ async cargarSubpreguntasFCRParaOpcion(opcionId, esSi = false) {
                 }
             }
         } else {
-            throw new Error('Error al cargar subpreguntas');
+            // Si no hay subpreguntas (null o undefined), verificar si es por falta de conexión Y falta de caché
+            const isOffline = !navigator.onLine || noHayCache;
+            if (isOffline && noHayCache) {
+                console.warn('⚠️ Sin conexión y no hay subpreguntas en caché para esta opción');
+                this.cargando = false;
+                
+                // Mostrar mensaje informativo pero NO finalizar automáticamente
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Sin conexión',
+                    html: 'No se pueden cargar las subpreguntas porque no hay conexión a internet y no hay datos guardados previamente.<br><br>¿Desea continuar sin responder las subpreguntas?',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, continuar',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#4f46e5',
+                    cancelButtonColor: '#6b7280',
+                    allowOutsideClick: false
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        // El usuario decidió continuar sin subpreguntas
+                        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                                            this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+                        
+                        if (!hayMasTipos) {
+                            if (this.tiposCalificacionSecuencia.length > 1) {
+                                await this.guardarCalificacionTipoIndividual();
+                            } else {
+                                await this.guardarCalificacionCompleta();
+                            }
+                            this.mostrarCuestionario = false;
+                            this.mostrarAgradecimiento = true;
+                            this.iniciarTemporizadorCierre();
+                        } else {
+                            await this.avanzarAlSiguienteTipo();
+                        }
+                    } else {
+                        // El usuario canceló, volver al inicio
+                        this.cargando = false;
+                        this.mostrarCuestionario = false;
+                    }
+                });
+                return;
+            } else {
+                throw new Error('Error al cargar subpreguntas');
+            }
         }
     } catch (error) {
         console.error('❌ Error cargando subpreguntas FCR:', error);
         this.cargando = false;
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Error al cargar las subpreguntas: ' + error.message,
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: '#ef4444'
-        });
         
-        // Continuar con el flujo normal en caso de error
-        const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
-                            this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+        // Verificar si es un error de conexión
+        const isOfflineError = !navigator.onLine || (error.message && error.message.includes('cache'));
         
-        if (!hayMasTipos) {
-            if (this.tiposCalificacionSecuencia.length > 1) {
-                await this.guardarCalificacionTipoIndividual();
-            } else {
-                await this.guardarCalificacionCompleta();
-            }
-            this.mostrarCuestionario = false;
-            this.mostrarAgradecimiento = true;
-            this.iniciarTemporizadorCierre();
+        if (isOfflineError) {
+            // Error por falta de conexión
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin conexión',
+                html: 'No se pueden cargar las subpreguntas porque no hay conexión a internet y no hay datos guardados previamente.<br><br>¿Desea continuar sin responder las subpreguntas?',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, continuar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#4f46e5',
+                cancelButtonColor: '#6b7280',
+                allowOutsideClick: false
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    // El usuario decidió continuar sin subpreguntas
+                    const hayMasTipos = this.tiposCalificacionSecuencia.length > 1 && 
+                                        this.indiceTipoActual < this.tiposCalificacionSecuencia.length - 1;
+                    
+                    if (!hayMasTipos) {
+                        if (this.tiposCalificacionSecuencia.length > 1) {
+                            await this.guardarCalificacionTipoIndividual();
+                        } else {
+                            await this.guardarCalificacionCompleta();
+                        }
+                        this.mostrarCuestionario = false;
+                        this.mostrarAgradecimiento = true;
+                        this.iniciarTemporizadorCierre();
+                    } else {
+                        await this.avanzarAlSiguienteTipo();
+                    }
+                } else {
+                    // El usuario canceló, volver al inicio
+                    this.cargando = false;
+                    this.mostrarCuestionario = false;
+                }
+            });
         } else {
-            await this.avanzarAlSiguienteTipo();
+            // Error diferente (no de conexión)
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error al cargar las subpreguntas: ' + error.message,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: '#ef4444'
+            });
+            
+            // NO finalizar automáticamente en caso de error, dejar que el usuario decida
+            this.cargando = false;
         }
     }
 },
@@ -4199,10 +4666,12 @@ async cargarSubpreguntasFCR() {
         }
         
         // Buscar la opción "No" de la pregunta FCR
-        const response = await fetch(`/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=1&sede_id=${sedeId}`);
+        // 🔥 NUEVO: Usar función helper con soporte offline
+        const url = `/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=1&sede_id=${sedeId}`;
+        const cacheKey = `preguntas_fcr_${this.areaSeleccionada.id}_${sedeId}`;
+        const todasLasPreguntas = await this.cargarDatosConOffline(url, cacheKey);
         
-        if (response.ok) {
-            const todasLasPreguntas = await response.json();
+        if (todasLasPreguntas) {
             
             if (todasLasPreguntas.length > 0) {
                 const preguntaFCR = todasLasPreguntas[0];
@@ -4214,10 +4683,11 @@ async cargarSubpreguntasFCR() {
                     console.log('📝 Opción "No" tiene subpreguntas, cargándolas...');
                     
                     // Cargar las subpreguntas
-                    const subpreguntasResponse = await fetch(`/api/subpreguntas/${opcionNo.id}`);
+                    // 🔥 NUEVO: Usar función helper con soporte offline
+                    const cacheKey = `subpreguntas_${opcionNo.id}`;
+                    let subpreguntas = await this.cargarDatosConOffline(`/api/subpreguntas/${opcionNo.id}`, cacheKey);
                     
-                    if (subpreguntasResponse.ok) {
-                        let subpreguntas = await subpreguntasResponse.json();
+                    if (subpreguntas) {
                         
                         // Procesar opciones de las subpreguntas
                         subpreguntas = subpreguntas.map(subpregunta => {
@@ -4306,6 +4776,10 @@ async cargarSubpreguntasFCR() {
 
 // 🔥 NUEVO: Cargar pregunta FCR desde BD
 async cargarPreguntaFCR() {
+    if (this.cargandoPreguntaFCR) {
+        console.log('⏳ cargarPreguntaFCR omitido: ya hay una carga en curso');
+        return;
+    }
     this.cargandoPreguntaFCR = true;
     try {
         const sedeGuardada = localStorage.getItem('sede_seleccionada');
@@ -4317,10 +4791,12 @@ async cargarPreguntaFCR() {
         }
         
         // Buscar pregunta FCR para esta área
-        const response = await fetch(`/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=todas&sede_id=${sedeId}`);
+        // 🔥 NUEVO: Usar función helper con soporte offline
+        const url = `/api/preguntas?area_id=${this.areaSeleccionada.id}&nivel_id=todas&sede_id=${sedeId}`;
+        const cacheKey = `preguntas_fcr_todas_${this.areaSeleccionada.id}_${sedeId}`;
+        const preguntas = await this.cargarDatosConOffline(url, cacheKey);
         
-        if (response.ok) {
-            const preguntas = await response.json();
+        if (preguntas) {
             // Buscar pregunta con tipo_pregunta = 'fcr'
             const preguntaFCR = preguntas.find(p => p.tipo_pregunta === 'fcr' && p.is_active);
             
@@ -4376,6 +4852,28 @@ async cargarPreguntaFCR() {
 * {
     -webkit-tap-highlight-color: transparent;
 }
+
+/* 🔥 BLOQUEO DE ZOOM: Prevenir zoom con gestos táctiles */
+.calificador-container,
+.calificador-container * {
+    touch-action: pan-x pan-y;
+    -ms-touch-action: pan-x pan-y;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* Prevenir zoom con doble toque */
+.calificador-container {
+    -ms-content-zooming: none;
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
 /* Estilos base del calificador */
 .calificador-container {
     min-height: 100vh;
@@ -4385,11 +4883,6 @@ async cargarPreguntaFCR() {
     display: flex;
     align-items: center;
     justify-content: center;
-     user-select: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    -webkit-touch-callout: none;
 }
 
 /* Vista Selección */
@@ -5171,7 +5664,6 @@ async cargarPreguntaFCR() {
     -khtml-user-drag: none;
     -moz-user-drag: none;     /* Firefox */
     -o-user-drag: none;
-    user-drag: none;
 
     -webkit-user-select: none; /* no seleccionar */
     -moz-user-select: none;
@@ -5456,42 +5948,13 @@ async cargarPreguntaFCR() {
     line-height: 1.5;
 }
 
-/* 🔥 NUEVO: Estilos para indicadores alternativos (NPS y FCR iniciales) */
+/* Indicadores alternativos (p. ej. FCR inicial sin CSAT) */
 .indicadores-alt-wrapper {
     display: flex;
     flex-direction: column;
     gap: 2rem;
     max-width: 700px;
     margin: 0 auto;
-}
-
-.indicador-nps-wrapper h3 {
-    text-align: center;
-    color: #1F2937;
-    font-size: 1.5rem;
-}
-
-.indicador-simple-container {
-    margin-bottom: 2rem;
-}
-
-.btn-continuar-nps {
-    width: 100%;
-    padding: 1rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-}
-
-.btn-continuar-nps:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
 }
 
 .indicador-fcr-wrapper h3 {
@@ -5503,63 +5966,273 @@ async cargarPreguntaFCR() {
 
 .fcr-options {
     display: flex;
-    gap: 2rem;
+    gap: 3rem;
     justify-content: center;
+    align-items: center;
 }
 
 .fcr-option {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
-    padding: 2rem;
-    border: 3px solid #e5e7eb;
-    border-radius: 16px;
+    gap: 1.5rem;
+    padding: 0 0 4rem 0;
+    border: none;
+    border-radius: 0;
     cursor: pointer;
-    transition: all 0.3s ease;
-    background: white;
-    min-width: 180px;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent;
+    min-width: auto;
+    position: relative;
+    overflow: visible;
 }
 
-.fcr-option:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+.fcr-option:hover:not(.fcr-no-hover) {
+    transform: translateY(-10px) scale(1.1);
 }
 
-.fcr-option:first-child:hover {
-    border-color: #10B981;
-    background: #f0fdf4;
+.fcr-option:active {
+    transform: translateY(-5px) scale(1.05);
+    transition: all 0.1s ease;
 }
 
-.fcr-option:last-child:hover {
-    border-color: #EF4444;
-    background: #fef2f2;
+.fcr-option:first-child:hover:not(.fcr-no-hover) .fcr-icon {
+    animation: pulse-bien 0.6s ease-in-out;
+    transform: scale(1.2);
+}
+
+.fcr-option:last-child:hover:not(.fcr-no-hover) .fcr-icon {
+    animation: pulse-mal 0.6s ease-in-out;
+    transform: scale(1.2);
 }
 
 .fcr-icon {
-    width: 80px;
-    height: 80px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.5rem;
+    font-size: 6.5rem;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.fcr-icon i {
+    transition: transform 0.3s ease;
+}
+
+.fcr-option:hover:not(.fcr-no-hover) .fcr-icon i {
+    transform: scale(1.1) rotate(5deg);
+}
+
+.fcr-option:first-child:hover:not(.fcr-no-hover) .fcr-icon i {
+    transform: scale(1.1) rotate(-10deg);
+}
+
+.fcr-option:last-child:hover:not(.fcr-no-hover) .fcr-icon i {
+    transform: scale(1.1) rotate(10deg);
 }
 
 .fcr-icon.bien {
-    background: #D1FAE5;
+    background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
     color: #10B981;
 }
 
 .fcr-icon.mal {
-    background: #FEE2E2;
+    background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
     color: #EF4444;
 }
 
 .fcr-option span {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 1.5rem;
+    font-weight: 700;
     color: #374151;
+    position: relative;
+    z-index: 1;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+}
+
+.fcr-option:hover:not(.fcr-no-hover) span {
+    transform: scale(1.1);
+    color: #1F2937;
+}
+
+@keyframes pulse-bien {
+    0%, 100% {
+        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+    }
+    50% {
+        box-shadow: 0 8px 40px rgba(16, 185, 129, 0.6);
+    }
+}
+
+@keyframes pulse-mal {
+    0%, 100% {
+        box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+    }
+    50% {
+        box-shadow: 0 8px 40px rgba(239, 68, 68, 0.6);
+    }
+}
+
+/* 🔥 NUEVO: Estilos para pantalla de carga del calificador */
+.loading-calificador-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.loading-calificador-content {
+    background: white;
+    border-radius: 24px;
+    padding: 3rem;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    animation: slideUp 0.4s ease-out;
+}
+
+.loading-calificador-icon {
+    font-size: 4rem;
+    color: #667eea;
+    margin-bottom: 1.5rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.loading-calificador-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+}
+
+.loading-calificador-subtitle {
+    font-size: 1rem;
+    color: #6b7280;
+    margin-bottom: 2rem;
+}
+
+.progress-bar-container {
+    margin-bottom: 2rem;
+}
+
+.progress-bar-background {
+    width: 100%;
+    height: 12px;
+    background: #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+    transition: width 0.3s ease;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.progress-bar-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #667eea;
+}
+
+.loading-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.loading-detail-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+.loading-detail-item i {
+    font-size: 1rem;
+}
+
+.loading-detail-item i.fa-check-circle {
+    color: #10b981;
+}
+
+.loading-detail-item i.fa-spinner {
+    color: #667eea;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+/* Animación de entrada para las opciones */
+.fcr-option {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.fcr-option:first-child {
+    animation-delay: 0.1s;
+}
+
+.fcr-option:last-child {
+    animation-delay: 0.2s;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 </style>
